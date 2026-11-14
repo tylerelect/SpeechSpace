@@ -1,0 +1,116 @@
+
+# ==========================================
+# SpeechSpace - Flutter & Dart
+# ==========================================
+
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ / Android Studio
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code
+# Uncomment to ignore local VS Code settings
+#.vscode/
+
+# ==========================================
+# Flutter / Dart / Pub
+# ==========================================
+
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+.widget_preview/
+
+# Flutter local overrides
+pubspec_overrides.yaml
+
+# Symbolication
+app.*.symbols
+
+# Obfuscation
+app.*.map.json
+
+# Android build artifacts
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# ==========================================
+# Environment Variables / API Keys
+# ==========================================
+
+# Ignore all .env files, including nested ones
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Allow safe example configurations
+!.env.example
+!**/.env.example
+
+# ==========================================
+# Python / FastAPI Backend
+# ==========================================
+
+**/.venv/
+**/venv/
+**/__pycache__/
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+
+# ==========================================
+# Private Data / Local Storage
+# ==========================================
+
+*.sqlite
+*.sqlite3
+*.db
+
+# User uploads and audio recordings
+backend/uploads/
+backend/recordings/
+backend/local_data/
+
+# ==========================================
+# Android Signing Credentials
+# ==========================================
+
+android/key.properties
+*.jks
+*.keystore
+
+# ==========================================
+# Apple Signing Credentials
+# ==========================================
+
+*.p8
+*.p12
+*.mobileprovision
