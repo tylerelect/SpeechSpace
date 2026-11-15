@@ -7,10 +7,14 @@ import 'package:record/record.dart';
 /// Records PCM to memory, wraps it in WAV, and hands bytes to the configured
 /// transcription adapter. This widget does not pick or embed an STT model.
 class VoiceCapture extends StatefulWidget {
-  const VoiceCapture({super.key, required this.onTranscribe, required this.onTranscript});
+  const VoiceCapture({super.key, required this.onTranscribe, required this.onTranscript,
+      this.prompt = 'Speak your memory', this.onRecordingChanged});
 
   final Future<String> Function(Uint8List wav) onTranscribe;
   final ValueChanged<String> onTranscript;
+  final String prompt;
+  /// Lets the app pause background audio so it is not captured by the microphone.
+  final ValueChanged<bool>? onRecordingChanged;
 
   @override
   State<VoiceCapture> createState() => _VoiceCaptureState();
@@ -31,6 +35,7 @@ class _VoiceCaptureState extends State<VoiceCapture> {
     setState(() { _working = true; _error = null; });
     try {
       if (!await _recorder.hasPermission()) throw StateError('Microphone permission is required.');
+      widget.onRecordingChanged?.call(true);
       _audio = BytesBuilder(copy: false);
       _size = 0;
       final stream = await _recorder.startStream(const RecordConfig(
@@ -51,6 +56,7 @@ class _VoiceCaptureState extends State<VoiceCapture> {
       });
       if (mounted) setState(() => _recording = true);
     } catch (error) {
+      widget.onRecordingChanged?.call(false);
       if (mounted) setState(() => _error = error.toString());
     } finally {
       if (mounted) setState(() => _working = false);
@@ -63,6 +69,7 @@ class _VoiceCaptureState extends State<VoiceCapture> {
     try {
       await _recorder.stop();
       await _subscription?.cancel();
+      widget.onRecordingChanged?.call(false);
       final pcm = _audio.takeBytes();
       if (pcm.isEmpty) throw StateError('No audio was captured.');
       final result = await widget.onTranscribe(_makeWav(pcm));
@@ -99,6 +106,7 @@ class _VoiceCaptureState extends State<VoiceCapture> {
 
   @override
   void dispose() {
+    if (_recording) widget.onRecordingChanged?.call(false);
     _subscription?.cancel();
     _recorder.dispose();
     super.dispose();
@@ -114,7 +122,7 @@ class _VoiceCaptureState extends State<VoiceCapture> {
           Row(children: [
             Icon(_recording ? Icons.mic : Icons.mic_none_rounded),
             const SizedBox(width: 9),
-            Expanded(child: Text(_recording ? 'Recording… tap Stop when finished' : 'Speak your memory',
+            Expanded(child: Text(_recording ? 'Recording… tap Stop when finished' : widget.prompt,
                 style: const TextStyle(fontWeight: FontWeight.w600))),
             FilledButton.tonalIcon(
               onPressed: _working || (!_guardianApproved && !_recording) ? null : (_recording ? _stop : _start),

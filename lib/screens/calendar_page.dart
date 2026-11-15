@@ -24,14 +24,16 @@ class _CalendarPageState extends State<CalendarPage> {
     final days = DateTime(_month.year, _month.month + 1, 0).day;
     final offset = firstDay.weekday - 1; // Monday-first calendar
     final slots = ((offset + days + 6) ~/ 7) * 7;
-    final entries = widget.controller.childEntries;
+    final entries = widget.controller.profileEntries;
     final chosen = entries.where((e) => _sameDay(e.date, _selected)).toList();
+    final copy = widget.controller.copy;
+    final scheme = Theme.of(context).colorScheme;
 
     return Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 940), child: ListView(
       padding: const EdgeInsets.all(22), children: [
-        Text('Calendar', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
+        Text(copy.navCalendar, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
         const SizedBox(height: 6),
-        const Text('Explore memories day by day.'),
+        Text(copy.isKids ? 'Tap a day to see your stories.' : 'Review entries by date.'),
         const SizedBox(height: 18),
         Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
           Row(children: [
@@ -62,9 +64,9 @@ class _CalendarPageState extends State<CalendarPage> {
                 onTap: () => setState(() => _selected = date),
                 borderRadius: BorderRadius.circular(12),
                 child: Container(decoration: BoxDecoration(
-                  color: selected ? Theme.of(context).colorScheme.primaryContainer : Colors.grey.shade50,
+                  color: selected ? scheme.primaryContainer : scheme.surfaceContainerLow,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: selected ? Theme.of(context).colorScheme.primary : Colors.grey.shade200)),
+                  border: Border.all(color: selected ? scheme.primary : scheme.outlineVariant)),
                   child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Text('$day', style: TextStyle(fontWeight: selected ? FontWeight.bold : FontWeight.normal)),
                     if (count > 0) Container(margin: const EdgeInsets.only(top: 4), width: 7, height: 7,
@@ -79,11 +81,11 @@ class _CalendarPageState extends State<CalendarPage> {
           Expanded(child: Text(DateFormat('MMMM d, yyyy').format(_selected),
             style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold))),
           FilledButton.tonalIcon(onPressed: () => openEntryEditor(context, widget.controller, date: _selected),
-            icon: const Icon(Icons.add), label: const Text('Memory')),
+            icon: const Icon(Icons.add), label: Text(copy.isKids ? 'Story' : 'Entry')),
         ]),
         const SizedBox(height: 10),
-        if (chosen.isEmpty) const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('No memories on this day.'))),
-        ...chosen.map((e) => MemoryTile(entry: e,
+        if (chosen.isEmpty) const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('Nothing on this day yet.'))),
+        ...chosen.map((e) => MemoryTile(entry: e, kids: copy.isKids,
           onTap: () => openEntryEditor(context, widget.controller, entry: e))),
       ],
     )));

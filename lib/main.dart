@@ -21,27 +21,16 @@ class SpeechSpaceApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'SpeechSpace',
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF7565AF)),
-        scaffoldBackgroundColor: const Color(0xFFFBF9FE),
-        cardTheme: CardThemeData(
-          color: Colors.white,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: Colors.grey.shade200),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        ),
+    // Rebuild MaterialApp whenever the active profile or its themeId changes.
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'SpeechSpace',
+        theme: controller.theme,
+        themeAnimationDuration: const Duration(milliseconds: 350),
+        home: AppShell(controller: controller),
       ),
-      home: AppShell(controller: controller),
     );
   }
 }

@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../models/models.dart';
 import '../services/app_controller.dart';
+import '../theme/space_themes.dart';
 import 'calendar_page.dart';
 import 'mind_map_page.dart';
+import 'profile_setup_page.dart';
 import 'settings_page.dart';
+import 'start_page.dart';
 import 'timeline_page.dart';
 import 'today_page.dart';
 
@@ -38,12 +42,15 @@ class _AppShellState extends State<AppShell> {
           ])))));
       }
 
-      const destinations = <NavigationDestination>[
-        NavigationDestination(icon: Icon(Icons.wb_sunny_outlined), selectedIcon: Icon(Icons.wb_sunny), label: 'Today'),
-        NavigationDestination(icon: Icon(Icons.calendar_month_outlined), selectedIcon: Icon(Icons.calendar_month), label: 'Calendar'),
-        NavigationDestination(icon: Icon(Icons.auto_stories_outlined), selectedIcon: Icon(Icons.auto_stories), label: 'Memories'),
-        NavigationDestination(icon: Icon(Icons.hub_outlined), selectedIcon: Icon(Icons.hub), label: 'Mind map'),
-        NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Settings'),
+      if (!controller.started) return StartPage(controller: controller);
+      final copy = controller.copy;
+      final scheme = Theme.of(context).colorScheme;
+      final nav = <(IconData, IconData, String)>[
+        (Icons.wb_sunny_outlined, Icons.wb_sunny, copy.navToday),
+        (Icons.calendar_month_outlined, Icons.calendar_month, copy.navCalendar),
+        (Icons.auto_stories_outlined, Icons.auto_stories, copy.navMemories),
+        (copy.isKids ? Icons.auto_awesome_outlined : Icons.hub_outlined, copy.isKids ? Icons.auto_awesome : Icons.hub, copy.navMindMap),
+        (Icons.settings_outlined, Icons.settings, copy.navSettings),
       ];
       final pages = [
         TodayPage(controller: controller),
@@ -52,60 +59,124 @@ class _AppShellState extends State<AppShell> {
         MindMapPage(controller: controller),
         SettingsPage(controller: controller),
       ];
-      final wide = MediaQuery.sizeOf(context).width >= 880;
+      final width = MediaQuery.sizeOf(context).width;
+      final wide = width >= 880;
       return Scaffold(
         appBar: AppBar(
           toolbarHeight: 72,
-          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           title: Row(children: [
-            const Icon(Icons.auto_stories_rounded, color: Color(0xFF7565AF)),
+            Icon(controller.isKids ? Icons.rocket_launch_rounded : Icons.auto_stories_rounded, color: scheme.primary),
             const SizedBox(width: 10),
             const Flexible(child: Text('SpeechSpace', overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -.4))),
-            if (controller.demo && MediaQuery.sizeOf(context).width >= 760) ...[
+            if (controller.demo && width >= 760) ...[
               const SizedBox(width: 12),
               const Chip(label: Text('DEMO • not saved'), visualDensity: VisualDensity.compact),
             ],
           ]),
           actions: [
-            if (controller.children.isNotEmpty)
-              DropdownButtonHideUnderline(child: DropdownButton<String>(
-                value: controller.selectedChildId,
-                items: controller.children.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))).toList(),
-                onChanged: (id) { if (id != null) controller.selectChild(id); },
-              )),
-            const SizedBox(width: 16),
+            if (controller.isKids) ListenableBuilder(listenable: controller.sound, builder: (context, _) => IconButton(
+              tooltip: controller.sound.musicOn ? 'Turn music off' : 'Play space music',
+              onPressed: controller.sound.toggleMusic,
+              icon: Icon(controller.sound.musicOn ? Icons.music_note_rounded : Icons.music_off_outlined),
+            )),
+            if (controller.profiles.isNotEmpty) _ProfilePicker(controller: controller),
+            const SizedBox(width: 12),
           ],
         ),
         body: Row(children: [
           if (wide)
             NavigationRail(
-              backgroundColor: Theme.of(context).scaffoldBackgroundColor,
               selectedIndex: _selected,
               onDestinationSelected: (i) => setState(() => _selected = i),
-              extended: MediaQuery.sizeOf(context).width >= 1120,
+              extended: width >= 1120,
               leading: const SizedBox(height: 12),
-              destinations: const [
-                NavigationRailDestination(icon: Icon(Icons.wb_sunny_outlined), selectedIcon: Icon(Icons.wb_sunny), label: Text('Today')),
-                NavigationRailDestination(icon: Icon(Icons.calendar_month_outlined), selectedIcon: Icon(Icons.calendar_month), label: Text('Calendar')),
-                NavigationRailDestination(icon: Icon(Icons.auto_stories_outlined), selectedIcon: Icon(Icons.auto_stories), label: Text('Memories')),
-                NavigationRailDestination(icon: Icon(Icons.hub_outlined), selectedIcon: Icon(Icons.hub), label: Text('Mind map')),
-                NavigationRailDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: Text('Settings')),
-              ],
+              destinations: [for (final n in nav)
+                NavigationRailDestination(icon: Icon(n.$1), selectedIcon: Icon(n.$2), label: Text(n.$3))],
             ),
           if (wide) const VerticalDivider(width: 1),
-          Expanded(child: controller.child == null && _selected != 4
+          Expanded(child: controller.profile == null && _selected != 4
               ? _NoChild(controller: controller)
               : pages[_selected]),
         ]),
         bottomNavigationBar: wide ? null : NavigationBar(
           selectedIndex: _selected,
           onDestinationSelected: (i) => setState(() => _selected = i),
-          destinations: destinations,
-          labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
+          destinations: [for (final n in nav)
+            NavigationDestination(icon: Icon(n.$1), selectedIcon: Icon(n.$2), label: n.$3)],
+          labelBehavior: copy.isKids
+              ? NavigationDestinationLabelBehavior.alwaysShow
+              : NavigationDestinationLabelBehavior.onlyShowSelected,
         ),
       );
     });
+  }
+}
+
+/// App-bar profile switcher that labels each profile as Kids or Adult.
+class _ProfilePicker extends StatelessWidget {
+  const _ProfilePicker({required this.controller});
+  static const _newProfile = '__new_profile__';
+  static const _switchUser = '__switch_user__';
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final current = controller.profile;
+    return PopupMenuButton<String>(
+      tooltip: 'Switch profile',
+      onSelected: (value) async {
+        if (value == _newProfile) {
+          await openProfileSetup(context, controller);
+        } else if (value == _switchUser) {
+          await controller.switchUser();
+        } else {
+          controller.selectProfile(value);
+        }
+      },
+      itemBuilder: (_) => [for (final p in controller.profiles) PopupMenuItem(
+        value: p.id,
+        child: ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: ProfileAvatar(profile: p),
+          title: Text(p.name),
+          subtitle: Text(p.isKids ? 'Kids' : 'Adult'),
+          trailing: p.id == current?.id ? const Icon(Icons.check) : null,
+        ),
+      ),
+        const PopupMenuDivider(),
+        const PopupMenuItem(value: _newProfile, child: ListTile(contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.person_add_alt_1), title: Text('New profile…'))),
+        const PopupMenuItem(value: _switchUser, child: ListTile(contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.switch_account_outlined), title: Text('Switch user'))),
+      ],
+      child: Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (current != null) ProfileAvatar(profile: current, radius: 16),
+        const SizedBox(width: 8),
+        if (current != null) Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(current.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+          Text(current.isKids ? 'Kids' : 'Adult', style: Theme.of(context).textTheme.labelSmall),
+        ]),
+        const Icon(Icons.arrow_drop_down),
+      ])),
+    );
+  }
+}
+
+class ProfileAvatar extends StatelessWidget {
+  const ProfileAvatar({super.key, required this.profile, this.radius = 20});
+  final SpaceProfile profile;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = resolveTheme(profile.themeId, profile.kind);
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: t.seed.withValues(alpha: .2),
+      foregroundColor: t.seed,
+      child: Icon(profile.isKids ? Icons.rocket_launch_rounded : Icons.person_outline, size: radius),
+    );
   }
 }
 
@@ -117,7 +188,7 @@ class _NoChild extends StatelessWidget {
   Widget build(BuildContext context) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
     const Icon(Icons.child_care, size: 66),
     const SizedBox(height: 12),
-    const Text('Start by adding a child profile in Settings'),
+    const Text('Start by adding a profile in Settings'),
     const SizedBox(height: 8),
     TextButton(onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Open Settings to create a profile.'))), child: const Text('Got it')),

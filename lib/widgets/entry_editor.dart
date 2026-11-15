@@ -5,9 +5,11 @@ import '../models/models.dart';
 import '../services/app_controller.dart';
 import 'voice_capture.dart';
 
+/// Opens the editor. For a new entry, [suggestion] pre-fills the title and shows
+/// the idea as guidance; [onSaved] receives the saved entry.
 Future<void> openEntryEditor(BuildContext context, AppController controller,
-    {JournalEntry? entry, DateTime? date}) async {
-  if (controller.child == null) return;
+    {JournalEntry? entry, DateTime? date, StarIdea? suggestion, ValueChanged<JournalEntry>? onSaved}) async {
+  if (controller.profile == null) return;
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -15,14 +17,18 @@ Future<void> openEntryEditor(BuildContext context, AppController controller,
     showDragHandle: true,
     builder: (_) => FractionallySizedBox(
       heightFactor: .92,
-      child: EntryEditor(controller: controller, entry: entry, initialDate: date ?? DateTime.now()),
+      child: EntryEditor(controller: controller, entry: entry, initialDate: date ?? DateTime.now(),
+          suggestion: suggestion, onSaved: onSaved),
     ),
   );
 }
 
 class EntryEditor extends StatefulWidget {
-  const EntryEditor({super.key, required this.controller, required this.initialDate, this.entry});
+  const EntryEditor({super.key, required this.controller, required this.initialDate, this.entry,
+      this.suggestion, this.onSaved});
   final AppController controller;
+  final StarIdea? suggestion;
+  final ValueChanged<JournalEntry>? onSaved;
   final JournalEntry? entry;
   final DateTime initialDate;
 
@@ -45,7 +51,7 @@ class _EntryEditorState extends State<EntryEditor> {
     super.initState();
     _date = widget.entry?.date ?? widget.initialDate;
     _isMilestone = widget.entry?.isMilestone ?? false;
-    _title = TextEditingController(text: widget.entry?.title ?? '');
+    _title = TextEditingController(text: widget.entry?.title ?? widget.suggestion?.title ?? '');
     _body = TextEditingController(text: widget.entry?.body ?? '');
     _favorite = TextEditingController(text: widget.entry?.favorite ?? '');
     _highlight = TextEditingController(text: widget.entry?.highlight ?? '');
@@ -85,9 +91,9 @@ class _EntryEditorState extends State<EntryEditor> {
     }
     setState(() => _working = true);
     try {
-      await widget.controller.saveEntry(JournalEntry(
+      final saved = await widget.controller.saveEntry(JournalEntry(
         id: widget.entry?.id ?? '',
-        childId: widget.entry?.childId ?? widget.controller.selectedChildId!,
+        childId: widget.entry?.childId ?? widget.controller.selectedProfileId!,
         date: _date,
         title: _title.text.trim(),
         body: _body.text.trim(),
@@ -96,6 +102,7 @@ class _EntryEditorState extends State<EntryEditor> {
         isMilestone: _isMilestone,
         tags: _tags.text.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).take(8).toList(),
       ));
+      widget.onSaved?.call(saved);
       if (mounted) Navigator.of(context).pop();
     } catch (error) {
       if (mounted) _message(error.toString());
@@ -125,13 +132,14 @@ class _EntryEditorState extends State<EntryEditor> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final copy = widget.controller.copy;
     return Center(child: ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 760),
       child: Padding(
         padding: EdgeInsets.fromLTRB(20, 4, 20, MediaQuery.viewInsetsOf(context).bottom + 14),
         child: ListView(children: [
           Row(children: [
-            Expanded(child: Text(widget.entry == null ? 'Capture a new chapter' : 'Edit this chapter', style: theme.textTheme.headlineSmall)),
+            Expanded(child: Text(widget.entry == null ? copy.editorNewTitle : copy.editorEditTitle, style: theme.textTheme.headlineSmall)),
             IconButton(tooltip: 'Close', onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
           ]),
           const SizedBox(height: 8),
@@ -145,9 +153,23 @@ class _EntryEditorState extends State<EntryEditor> {
             label: Text(DateFormat.yMMMMd().format(_date)),
           ),
           const SizedBox(height: 12),
-          TextField(controller: _title, maxLength: 100, decoration: const InputDecoration(labelText: 'Memory title', hintText: 'My favorite part of today')),
+          if (widget.suggestion != null) Card(
+            color: theme.colorScheme.secondaryContainer,
+            child: ListTile(
+              leading: Icon(Icons.tips_and_updates_outlined, color: theme.colorScheme.onSecondaryContainer),
+              title: Text(widget.suggestion!.detail.isEmpty ? widget.suggestion!.title : widget.suggestion!.detail,
+                  style: TextStyle(color: theme.colorScheme.onSecondaryContainer)),
+              subtitle: Text(copy.isKids ? 'Idea to get you started. Tell it in your own words!'
+                  : 'Suggestion to get you started. Write it in your own words.',
+                  style: TextStyle(color: theme.colorScheme.onSecondaryContainer)),
+            ),
+          ),
+          if (widget.suggestion != null) const SizedBox(height: 12),
+          TextField(controller: _title, maxLength: 100, decoration: InputDecoration(labelText: copy.titleLabel, hintText: copy.titleHint)),
           VoiceCapture(
             onTranscribe: widget.controller.transcribe,
+            prompt: copy.recordPrompt,
+            onRecordingChanged: widget.controller.sound.onRecordingChanged,
             onTranscript: (text) {
               _body.text = _body.text.isEmpty ? text : '${_body.text}\n$text';
               _message('Transcript added. You can edit it.');
@@ -155,8 +177,8 @@ class _EntryEditorState extends State<EntryEditor> {
           ),
           const SizedBox(height: 12),
           TextField(controller: _body, minLines: 5, maxLines: 9, maxLength: 8000,
-            decoration: const InputDecoration(labelText: 'What happened?', alignLabelWithHint: true,
-              hintText: 'Today I played with…')),
+            decoration: InputDecoration(labelText: copy.bodyLabel, alignLabelWithHint: true,
+              hintText: copy.bodyHint)),
           Align(alignment: Alignment.centerLeft, child: OutlinedButton.icon(
             onPressed: _working ? null : _analyze,
             icon: const Icon(Icons.auto_awesome_outlined), label: const Text('Suggest highlights with Gemini Flash'),
@@ -180,7 +202,7 @@ class _EntryEditorState extends State<EntryEditor> {
             if (widget.entry != null) IconButton(tooltip: 'Delete memory', onPressed: _working ? null : _delete, icon: const Icon(Icons.delete_outline)),
             const Spacer(),
             FilledButton.icon(onPressed: _working ? null : _save,
-              icon: const Icon(Icons.save_outlined), label: Text(_working ? 'Saving…' : 'Save memory')),
+              icon: const Icon(Icons.save_outlined), label: Text(_working ? 'Saving…' : copy.saveLabel)),
           ]),
           const SizedBox(height: 20),
         ]),

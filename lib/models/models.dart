@@ -1,17 +1,35 @@
-class ChildProfile {
+/// A journal owner. `kind` is `kids` or `adult`; both share the same data model.
+/// Wire format: `{id, name, kind, themeId}`. Entries and links still refer to it
+/// through their legacy `childId` key.
+class SpaceProfile {
   final String id;
   final String name;
-  final String color;
+  final String kind;
+  final String themeId;
 
-  const ChildProfile({required this.id, required this.name, this.color = 'lavender'});
+  static const kids = 'kids';
+  static const adult = 'adult';
 
-  factory ChildProfile.fromJson(Map<String, dynamic> json) => ChildProfile(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        color: (json['color'] as String?) ?? 'lavender',
-      );
+  const SpaceProfile({required this.id, required this.name, this.kind = kids, String? themeId})
+      : themeId = themeId ?? (kind == adult ? 'indigo' : 'space');
 
-  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'color': color};
+  bool get isKids => kind != adult;
+
+  SpaceProfile copyWith({String? name, String? themeId}) =>
+      SpaceProfile(id: id, name: name ?? this.name, kind: kind, themeId: themeId ?? this.themeId);
+
+  factory SpaceProfile.fromJson(Map<String, dynamic> json) {
+    final kind = json['kind'] == adult ? adult : kids;
+    final theme = json['themeId'] as String?;
+    return SpaceProfile(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      kind: kind,
+      themeId: theme == null || theme.isEmpty ? null : theme,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'kind': kind, 'themeId': themeId};
 }
 
 class JournalEntry {
@@ -110,15 +128,64 @@ class AiInsight {
 }
 
 class AppSnapshot {
-  final List<ChildProfile> children;
+  final List<SpaceProfile> children;
   final List<JournalEntry> entries;
   final List<MemoryLink> links;
 
   const AppSnapshot({required this.children, required this.entries, required this.links});
 
   factory AppSnapshot.fromJson(Map<String, dynamic> json) => AppSnapshot(
-        children: ((json['children'] as List?) ?? []).map((e) => ChildProfile.fromJson(Map<String, dynamic>.from(e as Map))).toList(),
+        children: ((json['children'] as List?) ?? []).map((e) => SpaceProfile.fromJson(Map<String, dynamic>.from(e as Map))).toList(),
         entries: ((json['entries'] as List?) ?? []).map((e) => JournalEntry.fromJson(Map<String, dynamic>.from(e as Map))).toList(),
         links: ((json['links'] as List?) ?? []).map((e) => MemoryLink.fromJson(Map<String, dynamic>.from(e as Map))).toList(),
       );
+}
+
+/// A Gemini-suggested star on the star/mind map: a new idea or recommendation
+/// derived from one or more related journal entries. Suggestions are
+/// session-only; nothing is saved unless the user turns one into a real entry.
+class StarIdea {
+  final String id;
+  final String profileId;
+  final String title;
+  final String detail;
+  /// `idea` or `recommendation`.
+  final String type;
+  final List<String> sourceIds;
+  /// True for the offline demo samples, which do not come from Gemini.
+  final bool demo;
+
+  static const idea = 'idea';
+  static const recommendation = 'recommendation';
+
+  const StarIdea({
+    required this.id,
+    required this.profileId,
+    required this.title,
+    required this.detail,
+    required this.type,
+    required this.sourceIds,
+    this.demo = false,
+  });
+
+  bool get isRecommendation => type == recommendation;
+
+  /// Parses one item of the `/api/expand` response. Source IDs not in
+  /// [allowedSourceIds] are dropped so a suggestion can never point at another
+  /// profile's entries.
+  static StarIdea? fromJson(Map<String, dynamic> json,
+      {required String id, required String profileId, required Set<String> allowedSourceIds}) {
+    final title = (json['title'] as String?)?.trim() ?? '';
+    if (title.isEmpty) return null;
+    final sources = ((json['sourceIds'] as List?) ?? [])
+        .map((e) => e.toString()).where(allowedSourceIds.contains).toSet().toList();
+    return StarIdea(
+      id: id,
+      profileId: profileId,
+      title: title.length > 80 ? title.substring(0, 80) : title,
+      detail: ((json['detail'] as String?) ?? '').trim(),
+      type: json['type'] == recommendation ? recommendation : idea,
+      sourceIds: sources.isEmpty ? allowedSourceIds.toList() : sources,
+    );
+  }
 }
