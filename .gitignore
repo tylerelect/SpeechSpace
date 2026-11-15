@@ -62,6 +62,8 @@ app.*.map.json
 # Local Flutter dart-define secrets (token)
 config/dev.local.json
 config/*.local.json
+# Machine-specific Android Studio run configs
+.run/*.local.run.xml
 
 # Ignore all .env files, including nested ones
 .env

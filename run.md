@@ -74,6 +74,32 @@ For offline demo, select **SpeechSpace (Demo)**; no token setup is required.
 Use the permanent hostname only after its HTTPS route works. Quick Tunnel URLs
 can change. Stop/Run after changing defines. Never commit either local token file.
 
+### Optional local-only run configs
+
+Android Studio loads every `.run/*.run.xml`. Files named `.run/*.local.run.xml` are
+Git-ignored, so use them for machine-specific launchers. Example: copy
+`SpeechSpace_Remote_API.run.xml` to `SpeechSpace_Production.local.run.xml`, set
+`API_BASE_URL=https://api.speechspace.health`, and rename the configuration
+`SpeechSpace (Production API, local)`. It appears in the run dropdown on that
+machine only. It fails until the permanent hostname serves HTTPS.
+
+## Troubleshooting and notes for maintainers
+
+- **"Speech model not configured. Connect an STT adapter in the backend."** means the
+  app is in **demo mode** (`API_BASE_URL` was empty). It comes from
+  `DemoRepository`, not the backend. Check the selected run configuration, use
+  Stop/Run (not hot reload), and on iOS check for `ios/Flutter/Debug.local.xcconfig`.
+- A real backend speech failure says "Speech adapter not configured…". Fix it in
+  the **backend** `.env` (`STT_ENDPOINT_URL` or `STT_PROVIDER=elevenlabs` plus key/model).
+- A 401 or "not authorized" error means `DEV_API_TOKEN` in `config/dev.local.json`
+  doesn't match the backend's `APP_DEV_TOKEN`.
+- Check the token without launching the app:
+  `curl -H "Authorization: Bearer $APP_DEV_TOKEN" <API_BASE_URL>/api/snapshot`
+  should return 200.
+- **Never put real values in `config/dev.local.example.json`.** It is committed. A
+  real token was once committed there (commit `bbbc875`). Treat that token as
+  exposed and change it on the backend.
+
 The local Xcode override also affects Debug **iOS** runs from Android Studio or
 Flutter CLI. Remove `ios/Flutter/Debug.local.xcconfig` to use those launch arguments;
 regenerate it when returning to Xcode. Android builds are unaffected.
