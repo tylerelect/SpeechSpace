@@ -15,7 +15,7 @@ extension CalendarViewName on CalendarView {
       };
 }
 
-/// Inclusive [start], exclusive [endExclusive]; weeks run Monday–Sunday.
+/// Inclusive [start], exclusive [endExclusive]; weeks run Monday-Sunday.
 class CalendarPeriod {
   const CalendarPeriod({required this.start, required this.endExclusive, required this.label});
   final DateTime start;
@@ -38,7 +38,7 @@ class CalendarPeriod {
         final end = DateTime(start.year, start.month, start.day + 7);
         final last = DateTime(end.year, end.month, end.day - 1);
         return CalendarPeriod(start: start, endExclusive: end,
-            label: '${DateFormat('MMM d').format(start)} – ${DateFormat('MMM d, y').format(last)}');
+            label: '${DateFormat('MMM d').format(start)} - ${DateFormat('MMM d, y').format(last)}');
       case CalendarView.month:
         return CalendarPeriod(start: DateTime(d.year, d.month), endExclusive: DateTime(d.year, d.month + 1),
             label: DateFormat('MMMM y').format(d));
@@ -169,6 +169,18 @@ class CalendarData {
 const maxCalendarEntries = 200;
 const maxSummaryEntries = 40;
 
+/// One month of the year in review: short event/highlight bullets.
+class MonthRecap {
+  const MonthRecap({required this.month, required this.items});
+  final String month;
+  final List<String> items;
+
+  factory MonthRecap.fromJson(Map<String, dynamic> json) => MonthRecap(
+        month: (json['month'] as String?) ?? '',
+        items: ((json['items'] as List?) ?? []).map((e) => e.toString()).toList(),
+      );
+}
+
 /// Response of `POST /api/calendar/summary`. Never saved.
 class CalendarSummary {
   const CalendarSummary({
@@ -183,6 +195,9 @@ class CalendarSummary {
     required this.highlights,
     required this.themes,
     required this.milestones,
+    this.forParents = const [],
+    this.forKid = const [],
+    this.months = const [],
     this.sourceEntryIds = const [],
     this.demo = false,
   });
@@ -198,6 +213,12 @@ class CalendarSummary {
   final List<String> highlights;
   final List<String> themes;
   final List<String> milestones;
+  /// Kids only: what the grown-up should know to help (parent-facing).
+  final List<String> forParents;
+  /// Kids only: small next steps spoken to the child (kid-facing).
+  final List<String> forKid;
+  /// Year view only: month-by-month bullets in calendar order.
+  final List<MonthRecap> months;
   /// IDs of the entries the recap was generated from (the analyzed sample).
   final List<String> sourceEntryIds;
   /// True for offline demo recaps (not from Gemini).
@@ -217,6 +238,11 @@ class CalendarSummary {
         highlights: _strings(json['highlights']),
         themes: _strings(json['themes']),
         milestones: _strings(json['milestones']),
+        forParents: _strings(json['forParents']),
+        forKid: _strings(json['forKid']),
+        months: ((json['months'] as List?) ?? [])
+            .whereType<Map<dynamic, dynamic>>().map((m) => MonthRecap.fromJson(Map<String, dynamic>.from(m)))
+            .where((m) => m.month.isNotEmpty && m.items.isNotEmpty).toList(),
         sourceEntryIds: _strings(json['sourceEntryIds']),
       );
 }

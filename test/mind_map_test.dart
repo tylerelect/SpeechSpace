@@ -95,7 +95,7 @@ void main() {
 
       await tester.tap(find.byTooltip('Remove connection'));
       await tester.pumpAndSettle();
-      await tester.tap(find.textContaining('• Outdoors'));
+      await tester.tap(find.textContaining('- Outdoors'));
       await tester.pumpAndSettle();
       expect(c.profileLinks.map((l) => l.label), isNot(contains('Outdoors')));
     });
@@ -307,7 +307,7 @@ void main() {
       focus.requestFocus();
       await tester.pumpAndSettle();
       expect(tester.widget<Text>(find.byKey(const ValueKey('mindmap-selected'))).data,
-          'Selected: The big blue kite • 1 connection');
+          'Selected: The big blue kite - 1 connection');
       // Unconnected cards are dimmed; the linked one is not.
       double opacityOf(String title) => tester.widget<AnimatedOpacity>(
           find.ancestor(of: find.text(title), matching: find.byType(AnimatedOpacity))).opacity;
@@ -341,7 +341,7 @@ void main() {
       final c = await demo('demo-jordan');
       await pumpMap(tester, c, size: const Size(360, 740));
       expect(tester.takeException(), isNull);
-      expect(find.text('Pinch to zoom • drag the background to pan • drag a card to move it'), findsOneWidget);
+      expect(find.text('Pinch to zoom - drag the background to pan - drag a card to move it'), findsOneWidget);
     });
   });
 }

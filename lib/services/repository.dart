@@ -331,11 +331,11 @@ class RemoteRepository implements MemoryRepository {
   ///
   /// `POST /api/expand`
   /// Request:  `{ "profileId": "...", "entryIds": ["..."], "kind": "kids" | "adult" }`
-  ///           (1–6 IDs; the server loads the entries itself, scoped to the
+  ///           (1-6 IDs; the server loads the entries itself, scoped to the
   ///           authenticated owner and profile, rather than trusting client text)
   /// Response: `{ "ideas": [ { "title": "...", "detail": "...",
   ///             "type": "idea" | "recommendation", "sourceIds": ["..."] } ] }`
-  ///           (2–4 ideas; sourceIds must be a subset of entryIds)
+  ///           (2-4 ideas; sourceIds must be a subset of entryIds)
   /// Errors:   503 when GEMINI_API_KEY is unset, 502 when Gemini fails,
   ///           404 when an entry is not owned by this profile.
   @override
@@ -353,9 +353,9 @@ class RemoteRepository implements MemoryRepository {
   /// `backend/test_calendar.py`).
   ///
   /// `POST /api/prompts`
-  /// Request:  `{ "text": "<draft, 1–8000 chars>", "kind": "kids" | "adult", "profileId"?: "..." }`
+  /// Request:  `{ "text": "<draft, 1-8000 chars>", "kind": "kids" | "adult", "profileId"?: "..." }`
   /// Response: `{ "prompts": [ { "label": "Who helped you?", "starter": "Someone who helped me was " } ] }`
-  ///           (2–4 prompts; label ≤ 40 chars is the chip text; starter ≤ 80 chars
+  ///           (2-4 prompts; label ≤ 40 chars is the chip text; starter ≤ 80 chars
   ///           is an unfinished sentence the writer completes in their own words)
   /// Errors:   503 when GEMINI_API_KEY is unset, 502 when Gemini fails.
   /// The draft is not stored; it is only used to generate the prompts.

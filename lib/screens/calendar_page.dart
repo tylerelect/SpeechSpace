@@ -150,6 +150,8 @@ class _CalendarPageState extends State<CalendarPage> {
             error: summaryCurrent ? _summaryError : null,
             hasEntries: data.entryCount > 0,
             onGenerate: _generateSummary,
+            kids: copy.isKids,
+            name: _c.profile?.name ?? '',
           ),
           const SizedBox(height: 16),
           if (_view != CalendarView.year) ...[
@@ -392,7 +394,10 @@ class _YearGrid extends StatelessWidget {
 
 class _SummaryCard extends StatelessWidget {
   const _SummaryCard({required this.view, required this.summary, required this.loading, required this.error,
-      required this.hasEntries, required this.onGenerate});
+      required this.hasEntries, required this.onGenerate, this.kids = false, this.name = ''});
+  final bool kids;
+  /// Profile name, for the kid-facing "For [name]" section.
+  final String name;
   final CalendarView view;
   final CalendarSummary? summary;
   final bool loading;
@@ -432,15 +437,31 @@ class _SummaryCard extends StatelessWidget {
         Wrap(spacing: 8, runSpacing: 6, children: [
           if (s.demo) const Chip(label: Text('Demo recap (not Gemini)'), visualDensity: VisualDensity.compact),
           if (s.partial) Chip(visualDensity: VisualDensity.compact,
-              label: Text('Based on a sample of entries • ${s.analyzedEntries} of ${s.entryCount} analyzed')),
+              label: Text('Based on a sample of entries - ${s.analyzedEntries} of ${s.entryCount} analyzed')),
         ]),
         const SizedBox(height: 6),
-        Text(s.summary),
-        if (s.highlights.isNotEmpty) ...[
+        Text(s.summary, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
+        // Year in review: month by month, short bullets, no prose.
+        if (view == CalendarView.year && s.months.isNotEmpty)
+          for (final m in s.months) ...[
+            const SizedBox(height: 10),
+            Text('${m.month}:', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+            for (final item in m.items) _Bullet(item),
+          ]
+        else if (s.highlights.isNotEmpty) ...[
           const SizedBox(height: 10),
           Text('Highlights', style: theme.textTheme.labelLarge),
-          for (final h in s.highlights) Padding(padding: const EdgeInsets.only(top: 3), child: Text('• $h')),
+          for (final h in s.highlights) _Bullet(h),
         ],
+        // Kept apart on purpose: what the grown-up can do vs. what the child can try.
+        if (kids && s.forParents.isNotEmpty) _GuidanceBox(
+          key: const ValueKey('summary-for-parents'),
+          icon: Icons.family_restroom, title: 'For parents', items: s.forParents,
+          color: theme.colorScheme.secondaryContainer, onColor: theme.colorScheme.onSecondaryContainer),
+        if (kids && s.forKid.isNotEmpty) _GuidanceBox(
+          key: const ValueKey('summary-for-kid'),
+          icon: Icons.star_rounded, title: name.isEmpty ? 'For you' : 'For $name', items: s.forKid,
+          color: theme.colorScheme.tertiaryContainer, onColor: theme.colorScheme.onTertiaryContainer),
         if (s.themes.isNotEmpty) ...[
           const SizedBox(height: 10),
           Wrap(spacing: 6, runSpacing: 6, children: [for (final t in s.themes) Chip(label: Text(t), visualDensity: VisualDensity.compact)]),
@@ -452,15 +473,51 @@ class _SummaryCard extends StatelessWidget {
         ],
         const SizedBox(height: 10),
         // Factual counts come from saved entries, kept apart from the generated text.
-        Text('Saved data: ${s.entryCount} ${s.entryCount == 1 ? 'entry' : 'entries'} • ${s.activeDays} active '
-            '${s.activeDays == 1 ? 'day' : 'days'} • ${s.milestoneCount} marked '
+        Text('Saved data: ${s.entryCount} ${s.entryCount == 1 ? 'entry' : 'entries'} - ${s.activeDays} active '
+            '${s.activeDays == 1 ? 'day' : 'days'} - ${s.milestoneCount} marked '
             '${s.milestoneCount == 1 ? 'milestone' : 'milestones'}'
-            '${s.generated ? ' • ${s.analyzedEntries} analyzed' : ''}.',
+            '${s.generated ? ' - ${s.analyzedEntries} analyzed' : ''}.',
             key: const ValueKey('summary-counts'), style: theme.textTheme.bodySmall),
-        Text('A recap of what was written, not an assessment. Not saved.', style: theme.textTheme.bodySmall),
       ],
     ])));
   }
+}
+
+/// A plain "- item" line (simple hyphen, no bullet dots).
+class _Bullet extends StatelessWidget {
+  const _Bullet(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(top: 3), child: Text('- $text'));
+}
+
+/// A tinted box for one audience's guidance, so parent and kid notes never blend.
+class _GuidanceBox extends StatelessWidget {
+  const _GuidanceBox({super.key, required this.icon, required this.title, required this.items,
+      required this.color, required this.onColor});
+  final IconData icon;
+  final String title;
+  final List<String> items;
+  final Color color;
+  final Color onColor;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(top: 12),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
+    child: DefaultTextStyle.merge(style: TextStyle(color: onColor), child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(icon, size: 18, color: onColor),
+          const SizedBox(width: 6),
+          Text(title, style: Theme.of(context).textTheme.labelLarge?.copyWith(color: onColor, fontWeight: FontWeight.w700)),
+        ]),
+        for (final item in items) _Bullet(item),
+      ])),
+  );
 }
 
 /// Short, recoverable messages for calendar and recap failures. Saved entries

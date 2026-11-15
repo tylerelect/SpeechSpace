@@ -16,7 +16,7 @@ class ActivityDay {
   int get bucket => activityBucket(entryCount);
 }
 
-/// Default color buckets: `0`, `1`, `2`, `3–4`, `5+`.
+/// Default color buckets: `0`, `1`, `2`, `3-4`, `5+`.
 int activityBucket(int count) {
   if (count <= 0) return 0;
   if (count == 1) return 1;
@@ -25,7 +25,7 @@ int activityBucket(int count) {
   return 4;
 }
 
-const activityBucketLabels = ['0', '1', '2', '3–4', '5+'];
+const activityBucketLabels = ['0', '1', '2', '3-4', '5+'];
 
 /// Factual per-month totals, used for the text alternative to the colors.
 class ActivityMonth {
@@ -36,7 +36,7 @@ class ActivityMonth {
 }
 
 /// GitHub-contributions-style grid of the days on which entries were recorded:
-/// a rolling [days]-day window ending today, 7 rows (Monday–Sunday) by up to
+/// a rolling [days]-day window ending today, 7 rows (Monday-Sunday) by up to
 /// 53 week columns.
 ///
 /// Entries are bucketed by the recorded calendar day (the first 10 ISO

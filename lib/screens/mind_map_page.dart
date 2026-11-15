@@ -216,7 +216,7 @@ class _MindMapPageState extends State<MindMapPage> {
             ),
           ])),
           const SizedBox(height: 6),
-          Text('${chosen.length}/6 selected • Suggestions are not saved unless you keep one.',
+          Text('${chosen.length}/6 selected - Suggestions are not saved unless you keep one.',
               style: Theme.of(ctx).textTheme.bodySmall),
         ])),
         actions: [
@@ -266,7 +266,7 @@ class _MindMapPageState extends State<MindMapPage> {
           Text(idea.title, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
           if (idea.detail.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(idea.detail)),
           const SizedBox(height: 12),
-          Text('Based on: ${idea.sourceIds.map((id) => titles[id] ?? 'an entry').join(' • ')}',
+          Text('Based on: ${idea.sourceIds.map((id) => titles[id] ?? 'an entry').join(' - ')}',
               style: theme.textTheme.bodySmall),
           const SizedBox(height: 6),
           Text('A suggestion only. Review it before keeping; it is not an assessment of anyone.',
@@ -330,7 +330,7 @@ class _MindMapPageState extends State<MindMapPage> {
       children: ordered.map((l) => SimpleDialogOption(
         onPressed: () => Navigator.pop(ctx, l.id),
         child: Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text(
-          '${entries[l.fromId] ?? 'Memory'} ↔ ${entries[l.toId] ?? 'Memory'} • ${l.label}')),
+          '${entries[l.fromId] ?? 'Memory'} ↔ ${entries[l.toId] ?? 'Memory'} - ${l.label}')),
       )).toList(),
     ));
     if (selected == null) return;
@@ -410,8 +410,8 @@ class _MindMapPageState extends State<MindMapPage> {
             : 'Drag cards to arrange entries. Tap a card to edit it. Use Ideas to get Gemini suggestions from related entries.'),
         const SizedBox(height: 4),
         Text(narrow
-            ? 'Pinch to zoom • drag the background to pan • drag a card to move it'
-            : 'Scroll or pinch to zoom • drag the background to pan • drag a card to move it • Esc clears the selection',
+            ? 'Pinch to zoom - drag the background to pan - drag a card to move it'
+            : 'Scroll or pinch to zoom - drag the background to pan - drag a card to move it - Esc clears the selection',
             key: const ValueKey('mindmap-hint'),
             style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
         const SizedBox(height: 6),
@@ -420,7 +420,7 @@ class _MindMapPageState extends State<MindMapPage> {
               ? Text(entries.length == 1 ? 'Add another ${kids ? 'story' : 'entry'} to make connections.' : '',
                   style: theme.textTheme.bodySmall)
               : Row(children: [
-                  Flexible(child: Text('Selected: ${selected.title} • $selectedLinks '
+                  Flexible(child: Text('Selected: ${selected.title} - $selectedLinks '
                       '${selectedLinks == 1 ? 'connection' : 'connections'}',
                       key: const ValueKey('mindmap-selected'), overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600))),
@@ -643,7 +643,7 @@ class _IdeaNode extends StatelessWidget {
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
             Text(idea.title, overflow: TextOverflow.ellipsis, maxLines: 1,
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: scheme.onTertiaryContainer)),
-            Text(idea.isRecommendation ? 'Try this • tap to keep' : 'Idea • tap to keep',
+            Text(idea.isRecommendation ? 'Try this - tap to keep' : 'Idea - tap to keep',
                 overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10.5, color: scheme.onTertiaryContainer)),
           ])),
         ]),

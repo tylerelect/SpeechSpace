@@ -45,7 +45,7 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   group('fixture through the remote API', () {
-    test('week of Nov 14 is Nov 9–15 and excludes Nov 16; month and year include all three', () async {
+    test('week of Nov 14 is Nov 9-15 and excludes Nov 16; month and year include all three', () async {
       final b = fixture();
       final repo = RemoteRepository(baseUrl: 'http://test', devToken: 't', client: b.client);
       final week = await repo.calendar('a1', CalendarView.week, DateTime(2026, 11, 14));
@@ -176,7 +176,7 @@ void main() {
       c.setCalendar(CalendarView.week, DateTime(2026, 11, 14));
       await pumpCalendar(tester, c);
 
-      expect(find.text('Nov 9 – Nov 15, 2026'), findsOneWidget);
+      expect(find.text('Nov 9 - Nov 15, 2026'), findsOneWidget);
       expect(weekCount(tester, '2026-11-09'), 1);
       expect(weekCount(tester, '2026-11-14'), 1);
       expect(weekCount(tester, '2026-11-15'), 0);
@@ -185,7 +185,7 @@ void main() {
 
       await tester.tap(find.byTooltip('Next'));
       await tester.pumpAndSettle();
-      expect(find.text('Nov 16 – Nov 22, 2026'), findsOneWidget);
+      expect(find.text('Nov 16 - Nov 22, 2026'), findsOneWidget);
       expect(find.text('Nov 16 note'), findsOneWidget);
       await tester.tap(find.byTooltip('Previous'));
       await tester.pumpAndSettle();
@@ -247,11 +247,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(b.count('POST /api/calendar/summary'), 1);
       expect(find.text('Recorded 3 entries.'), findsOneWidget);
-      expect(find.text('• Recorded activity'), findsOneWidget);
+      expect(find.text('- Recorded activity'), findsOneWidget);
       expect(find.text('Activities'), findsOneWidget);
       expect(find.text('⚑ Nov 14 note'), findsOneWidget);
       expect(tester.widget<Text>(find.byKey(const ValueKey('summary-counts'))).data,
-          'Saved data: 3 entries • 3 active days • 1 marked milestone • 3 analyzed.');
+          'Saved data: 3 entries - 3 active days - 1 marked milestone - 3 analyzed.');
     });
 
     testWidgets('Gemini failure (502) keeps entries and offers Retry', (tester) async {
@@ -310,7 +310,7 @@ void main() {
       await pumpCalendar(tester, c);
       await tester.tap(find.text('Generate summary'));
       await tester.pumpAndSettle();
-      expect(find.text('Based on a sample of entries • 40 of 45 analyzed'), findsOneWidget);
+      expect(find.text('Based on a sample of entries - 40 of 45 analyzed'), findsOneWidget);
     });
 
     testWidgets('truncated:true says the list is partial', (tester) async {
@@ -392,6 +392,65 @@ void main() {
       expect(calendarErrorMessage(const ApiException(422, 'Project must belong to the selected profile.')),
           'Project must belong to the selected profile.');
       expect(calendarErrorMessage(Exception('SocketException: refused')), contains('offline'));
+    });
+  });
+
+  group('recap layout', () {
+    testWidgets('kids recap keeps parent and kid guidance in separate boxes; no footer, no dots', (tester) async {
+      final b = fixture()..summaryBody = {
+        'summary': 'Floated on his back for the first time.',
+        'highlights': ['Swim lesson', 'Ice cream after'],
+        'forParents': ['Says the deep end is scary - try short visits together.'],
+        'forKid': ['You floated! Try counting to ten next time.'],
+      };
+      final c = await remote(b, profile: 'k1');
+      c.setCalendar(CalendarView.week, DateTime(2026, 11, 14));
+      await pumpCalendar(tester, c, size: const Size(393, 2400));
+      await tester.tap(find.text('Generate summary'));
+      await tester.pumpAndSettle();
+      final parents = find.byKey(const ValueKey('summary-for-parents'));
+      final kid = find.byKey(const ValueKey('summary-for-kid'));
+      expect(find.descendant(of: parents, matching: find.text('For parents')), findsOneWidget);
+      expect(find.descendant(of: parents, matching: find.text('- Says the deep end is scary - try short visits together.')), findsOneWidget);
+      expect(find.descendant(of: kid, matching: find.text('For Kid')), findsOneWidget);
+      expect(find.descendant(of: kid, matching: find.text('- You floated! Try counting to ten next time.')), findsOneWidget);
+      expect(find.descendant(of: parents, matching: find.textContaining('You floated')), findsNothing);
+      expect(find.text('- Swim lesson'), findsOneWidget);
+      expect(find.textContaining('not an assessment'), findsNothing);
+      for (final t in tester.widgetList<Text>(find.byType(Text))) {
+        expect(t.data ?? '', isNot(matches(RegExp('[\u2022\u00b7\u2013\u2014]'))));
+      }
+    });
+
+    testWidgets('year in review lists months with short bullets', (tester) async {
+      final b = fixture()..summaryBody = {
+        'summary': 'Learned to swim.',
+        'highlights': ['Should not show in year view'],
+        'months': [
+          {'month': 'November', 'items': ['First swim lesson', 'Halloween', 'Met a puppy']},
+        ],
+      };
+      final c = await remote(b, profile: 'k1');
+      c.setCalendar(CalendarView.year, DateTime(2026, 11, 14));
+      await pumpCalendar(tester, c);
+      await tester.tap(find.text('Generate summary'));
+      await tester.pumpAndSettle();
+      expect(find.text('November:'), findsOneWidget);
+      for (final item in ['First swim lesson', 'Halloween', 'Met a puppy']) {
+        expect(find.text('- $item'), findsOneWidget);
+      }
+      expect(find.textContaining('Should not show'), findsNothing);
+    });
+
+    testWidgets('adult recap never shows the kid sections', (tester) async {
+      final b = fixture()..summaryBody = {'summary': 'Notes.', 'forParents': ['x'], 'forKid': ['y']};
+      final c = await remote(b);
+      c.setCalendar(CalendarView.week, DateTime(2026, 11, 14));
+      await pumpCalendar(tester, c);
+      await tester.tap(find.text('Generate summary'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('summary-for-parents')), findsNothing);
+      expect(find.byKey(const ValueKey('summary-for-kid')), findsNothing);
     });
   });
 }

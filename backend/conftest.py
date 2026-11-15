@@ -12,6 +12,9 @@ except ImportError:
 @pytest.fixture(autouse=True)
 def isolated_integrations(monkeypatch):
     monkeypatch.setattr(backend, 'GEMINI_KEY', '')
+    monkeypatch.setattr(backend, 'LLM_BASE_URL', '')
+    monkeypatch.setattr(backend, 'LLM_MODEL', '')
+    monkeypatch.setattr(backend, 'LLM_API_KEY', '')
     monkeypatch.setattr(backend, 'STT_URL', '')
     monkeypatch.setattr(backend, 'STT_TOKEN', '')
     monkeypatch.setattr(backend, 'STT_PROVIDER', '')

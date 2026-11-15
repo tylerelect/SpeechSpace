@@ -125,7 +125,7 @@ class _AppShellState extends State<AppShell> {
                 style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -.4))),
             if (controller.demo && width >= 760) ...[
               const SizedBox(width: 12),
-              const Chip(label: Text('DEMO • not saved'), visualDensity: VisualDensity.compact),
+              const Chip(label: Text('DEMO - not saved'), visualDensity: VisualDensity.compact),
             ],
           ]),
           actions: [

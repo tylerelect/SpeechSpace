@@ -34,9 +34,9 @@ void main() {
       expect(map.busiest, isNull);
     });
 
-    test('buckets: 0, 1, 2, 3–4, 5+', () {
+    test('buckets: 0, 1, 2, 3-4, 5+', () {
       expect([0, 1, 2, 3, 4, 5, 9].map(activityBucket), [0, 1, 2, 3, 3, 4, 4]);
-      expect(activityBucketLabels, ['0', '1', '2', '3–4', '5+']);
+      expect(activityBucketLabels, ['0', '1', '2', '3-4', '5+']);
     });
 
     test('several notes on one day count as notes, but one active day', () {
@@ -175,7 +175,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('heat-2026-11-14')));
       await tester.pumpAndSettle();
       expect(find.text('Saturday, November 14, 2026'), findsOneWidget);
-      expect(tester.widget<Text>(find.byKey(const ValueKey('activity-selected-counts'))).data, '3 entries • 1 milestone');
+      expect(tester.widget<Text>(find.byKey(const ValueKey('activity-selected-counts'))).data, '3 entries - 1 milestone');
       await tester.tap(find.text('Open in calendar'));
       expect(opened, [DateTime(2026, 11, 14)]);
     });

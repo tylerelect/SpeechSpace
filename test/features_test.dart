@@ -52,7 +52,7 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   group('calendar periods', () {
-    test('week of Nov 14, 2026 is Mon Nov 9 – Sun Nov 15', () {
+    test('week of Nov 14, 2026 is Mon Nov 9 - Sun Nov 15', () {
       final p = CalendarPeriod.of(CalendarView.week, DateTime(2026, 11, 14));
       expect(p.start, DateTime(2026, 11, 9));
       expect(p.endExclusive, DateTime(2026, 11, 16));

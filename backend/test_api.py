@@ -354,3 +354,34 @@ def test_upstream_stt_adapter_responses(monkeypatch):
         run_mock(lambda req: httpx.Response(200, text='not-json'))
     with pytest.raises(httpx.HTTPStatusError):
         run_mock(lambda req: httpx.Response(503, json={'detail': 'private upstream failure'}))
+
+
+def test_openai_compatible_provider_parses_schema_reply(monkeypatch):
+    """LLM_BASE_URL + LLM_MODEL route structured calls to a chat-completions server."""
+    monkeypatch.setattr(backend, 'LLM_BASE_URL', 'http://gpu.example:8000/v1')
+    monkeypatch.setattr(backend, 'LLM_MODEL', 'nemotron-test')
+    monkeypatch.setattr(backend, 'LLM_API_KEY', '')
+    monkeypatch.setattr(backend, 'LLM_THINKING', False)
+    sent = {}
+
+    class Reply:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {'choices': [{'message': {'content':
+                '<think>scratch</think>```json\n{"highlight": "Went swimming.", "favorite": "", "tags": ["pool"]}\n```'}}]}
+
+    def fake_post(url, json, headers, timeout):
+        sent.update(url=url, body=json, headers=headers)
+        return Reply()
+
+    monkeypatch.setattr(backend.httpx, 'post', fake_post)
+    result = backend.generate_openai_compatible('summarize', backend.MemoryInsight, 0.2)
+    assert result.highlight == 'Went swimming.' and result.tags == ['pool']
+    assert sent['url'] == 'http://gpu.example:8000/v1/chat/completions'
+    assert sent['body']['model'] == 'nemotron-test'
+    assert sent['body']['chat_template_kwargs'] == {'enable_thinking': False}
+    assert sent['body']['response_format']['type'] == 'json_schema'
+    assert sent['headers'] == {}
+    assert backend.ai_provider() == 'openai-compatible' and backend.ai_configured()

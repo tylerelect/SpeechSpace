@@ -86,7 +86,7 @@ class _ActivityHeatmapPageState extends State<ActivityHeatmapPage> {
         Card(child: Padding(padding: const EdgeInsets.fromLTRB(14, 14, 14, 10), child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${DateFormat.yMMMd().format(map.start)} – ${DateFormat.yMMMd().format(map.end)}',
+            Text('${DateFormat.yMMMd().format(map.start)} - ${DateFormat.yMMMd().format(map.end)}',
                 style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 10),
             // Scrolls horizontally on narrow screens; starts at the newest week.
@@ -313,7 +313,7 @@ class _DetailCard extends StatelessWidget {
               Text(DateFormat('EEEE, MMMM d, y').format(d.date), key: const ValueKey('activity-selected-date'),
                   style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
               const SizedBox(height: 4),
-              Text('${d.entryCount} ${d.entryCount == 1 ? (noun == 'stories' ? 'story' : 'entry') : noun} • '
+              Text('${d.entryCount} ${d.entryCount == 1 ? (noun == 'stories' ? 'story' : 'entry') : noun} - '
                   '${d.milestoneCount} ${d.milestoneCount == 1 ? 'milestone' : 'milestones'}',
                   key: const ValueKey('activity-selected-counts')),
             ])),
@@ -353,7 +353,7 @@ class _TextSummary extends StatelessWidget {
           ]),
         ],
         const SizedBox(height: 8),
-        Text('Counts of saved notes only — not a score or an assessment.', style: theme.textTheme.bodySmall),
+        Text('Counts of saved notes only - not a score or an assessment.', style: theme.textTheme.bodySmall),
       ],
     )));
   }

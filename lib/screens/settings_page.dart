@@ -93,8 +93,8 @@ class SettingsPage extends StatelessWidget {
       Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Integrations', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
-        _setting(Icons.storage_outlined, 'MongoDB Atlas', controller.demo ? 'Not connected • memory-only demo' : 'Connected through backend API'),
-        _setting(Icons.auto_awesome_outlined, 'Gemini Flash', 'Optional: highlights, calendar recaps, ideas and writing prompts • configured on the backend (GEMINI_API_KEY)'),
+        _setting(Icons.storage_outlined, 'MongoDB Atlas', controller.demo ? 'Not connected - memory-only demo' : 'Connected through backend API'),
+        _setting(Icons.auto_awesome_outlined, 'Gemini Flash', 'Optional: highlights, calendar recaps, ideas and writing prompts - configured on the backend (GEMINI_API_KEY)'),
         _setting(Icons.mic_none_outlined, 'Voice transcription', 'Configured on the backend: STT_ENDPOINT_URL, or the ElevenLabs adapter (STT_PROVIDER=elevenlabs)'),
       ]))),
       const SizedBox(height: 12),

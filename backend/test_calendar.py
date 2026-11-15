@@ -60,11 +60,11 @@ def get_calendar(client, profile_id, view, day, project_id=None):
 
 @pytest.mark.parametrize('view, anchor, start, end, label', [
     ('day', '2026-11-14', '2026-11-14', '2026-11-15', 'Saturday, November 14, 2026'),
-    ('week', '2026-11-14', '2026-11-09', '2026-11-16', 'Nov 9 – Nov 15, 2026'),
-    ('week', '2026-11-09', '2026-11-09', '2026-11-16', 'Nov 9 – Nov 15, 2026'),
-    ('week', '2026-11-15', '2026-11-09', '2026-11-16', 'Nov 9 – Nov 15, 2026'),
-    ('week', '2026-12-31', '2026-12-28', '2027-01-04', 'Dec 28, 2026 – Jan 3, 2027'),
-    ('week', '2026-12-02', '2026-11-30', '2026-12-07', 'Nov 30 – Dec 6, 2026'),
+    ('week', '2026-11-14', '2026-11-09', '2026-11-16', 'Nov 9 - Nov 15, 2026'),
+    ('week', '2026-11-09', '2026-11-09', '2026-11-16', 'Nov 9 - Nov 15, 2026'),
+    ('week', '2026-11-15', '2026-11-09', '2026-11-16', 'Nov 9 - Nov 15, 2026'),
+    ('week', '2026-12-31', '2026-12-28', '2027-01-04', 'Dec 28, 2026 - Jan 3, 2027'),
+    ('week', '2026-12-02', '2026-11-30', '2026-12-07', 'Nov 30 - Dec 6, 2026'),
     ('month', '2026-11-14', '2026-11-01', '2026-12-01', 'November 2026'),
     ('month', '2026-12-31', '2026-12-01', '2027-01-01', 'December 2026'),
     ('month', '2028-02-29', '2028-02-01', '2028-03-01', 'February 2028'),
@@ -84,7 +84,7 @@ def test_week_membership_and_empty_period(ctx):
     for day in ('2026-11-08', '2026-11-09', '2026-11-15', '2026-11-16'):
         add_entry(database, p['id'], f'{day}T23:30:00-08:00', title=day)
     data = get_calendar(client, p['id'], 'week', '2026-11-14').json()
-    assert data['period'] == {'start': '2026-11-09', 'endExclusive': '2026-11-16', 'label': 'Nov 9 – Nov 15, 2026'}
+    assert data['period'] == {'start': '2026-11-09', 'endExclusive': '2026-11-16', 'label': 'Nov 9 - Nov 15, 2026'}
     assert [d['date'] for d in data['days']] == ['2026-11-09', '2026-11-15']
     assert {e['title'] for e in data['entries']} == {'2026-11-09', '2026-11-15'}
     empty = get_calendar(client, p['id'], 'week', '2026-10-14').json()
@@ -580,3 +580,61 @@ def test_generic_adapter_unchanged(ctx, monkeypatch, mock_http):
     assert 'xi-api-key' not in seen['headers'] and b'model_id' not in seen['body']
     assert client.get('/health').json()['speechConfigured'] is True
     assert asyncio.run(backend.call_stt_service(wav_bytes())) == 'Generic works.'
+
+
+def test_kids_summary_is_brief_and_splits_parent_and_kid_guidance(ctx, monkeypatch):
+    client, database = ctx
+    p = make_profile(client)
+    add_entry(database, p['id'], '2026-11-10', title='Pool', body='I was scared of the deep end.')
+    monkeypatch.setattr(backend, 'GEMINI_KEY', 'not-real')
+    prompts = []
+    monkeypatch.setattr(backend, 'generate_structured', lambda prompt, schema: prompts.append(prompt) or {
+        'summary': 'Throughout the month, swam at the pool — and loved it.',
+        'highlights': ['• Overall, floated on his back', 'This week: jumped in'],
+        'themes': ['swimming'],
+        'forParents': ['Practice the deep end together – short visits.'],
+        'forKid': ['You floated! Try five more seconds next time.'],
+        'months': [{'month': 'November', 'items': ['Pool day']}]})
+    data = summary_request(client, p['id']).json()
+    assert data['summary'] == 'Swam at the pool - and loved it.'
+    assert data['highlights'] == ['Floated on his back', 'Jumped in']
+    assert data['forParents'] == ['Practice the deep end together - short visits.']
+    assert data['forKid'] == ['You floated! Try five more seconds next time.']
+    assert data['months'] == []  # month bullets are only for the year view
+    assert 'forParents' in prompts[0] and 'forKid' in prompts[0] and 'Throughout' in prompts[0]
+    for text in [data['summary'], *data['highlights'], *data['forParents'], *data['forKid']]:
+        assert not set(text) & {'–', '—', '•', '·'}
+
+
+def test_adult_summary_never_has_kid_sections(ctx, monkeypatch):
+    client, database = ctx
+    p = make_profile(client, 'adult')
+    add_entry(database, p['id'], '2026-11-14', title='Notes')
+    monkeypatch.setattr(backend, 'GEMINI_KEY', 'not-real')
+    monkeypatch.setattr(backend, 'generate_structured', lambda prompt, schema: {
+        'summary': 'Wrote notes.', 'highlights': [], 'themes': [],
+        'forParents': ['Should not appear'], 'forKid': ['Should not appear']})
+    data = summary_request(client, p['id'], 'day').json()
+    assert data['forParents'] == [] and data['forKid'] == []
+
+
+def test_year_in_review_is_month_by_month_in_calendar_order(ctx, monkeypatch):
+    client, database = ctx
+    p = make_profile(client)
+    add_entry(database, p['id'], '2026-03-05', title='Kite')
+    add_entry(database, p['id'], '2026-11-02', title='Rocket')
+    monkeypatch.setattr(backend, 'GEMINI_KEY', 'not-real')
+    prompts = []
+    monkeypatch.setattr(backend, 'generate_structured', lambda prompt, schema: prompts.append(prompt) or {
+        'summary': 'Big year.', 'highlights': [], 'themes': [],
+        'months': [
+            {'month': 'November', 'items': ['Throughout November, built a rocket', 'Rocket launch']},
+            {'month': 'July', 'items': ['Invented: no July entries exist']},
+            {'month': 'mar', 'items': ['Flew a kite — windy']},
+        ]})
+    data = summary_request(client, p['id'], 'year').json()
+    assert data['months'] == [
+        {'month': 'March', 'items': ['Flew a kite - windy']},
+        {'month': 'November', 'items': ['Built a rocket', 'Rocket launch']},
+    ]
+    assert 'YEAR VIEW' in prompts[0]

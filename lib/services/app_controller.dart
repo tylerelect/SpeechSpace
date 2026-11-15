@@ -368,7 +368,7 @@ class AppController extends ChangeNotifier {
     return saved;
   }
 
-  /// Asks Gemini (via the backend) for new stars based on 1–6 related entries.
+  /// Asks Gemini (via the backend) for new stars based on 1-6 related entries.
   /// Returns how many suggestions were added.
   Future<int> generateIdeas(List<String> entryIds) async {
     final profileId = selectedProfileId;

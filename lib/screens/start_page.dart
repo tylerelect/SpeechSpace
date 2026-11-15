@@ -32,7 +32,7 @@ class StartPage extends StatelessWidget {
             textAlign: TextAlign.center, style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
         if (controller.demo) ...[
           const SizedBox(height: 10),
-          const Center(child: Chip(label: Text('DEMO • profiles are not saved'), visualDensity: VisualDensity.compact)),
+          const Center(child: Chip(label: Text('DEMO - profiles are not saved'), visualDensity: VisualDensity.compact)),
         ],
         const SizedBox(height: 28),
         Wrap(alignment: WrapAlignment.center, spacing: 16, runSpacing: 16, children: [
@@ -66,7 +66,7 @@ class _ProfileCard extends StatelessWidget {
           Text(profile.name, overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: dark ? Colors.white : Colors.black87)),
           const SizedBox(height: 2),
-          Text('${profile.isKids ? 'Kids' : 'Adult'} • ${t.label}',
+          Text('${profile.isKids ? 'Kids' : 'Adult'} - ${t.label}',
               style: TextStyle(color: dark ? Colors.white70 : Colors.black54)),
         ]),
       ),
