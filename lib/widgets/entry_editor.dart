@@ -28,8 +28,10 @@ Future<void> openEntryEditor(BuildContext context, AppController controller,
 
 class EntryEditor extends StatefulWidget {
   const EntryEditor({super.key, required this.controller, required this.initialDate, this.entry,
-      this.suggestion, this.onSaved});
+      this.suggestion, this.onSaved, this.voiceRecorderFactory});
   final AppController controller;
+  /// Test hook for the microphone; defaults to the real recorder.
+  final VoiceRecorder Function()? voiceRecorderFactory;
   final StarIdea? suggestion;
   final ValueChanged<JournalEntry>? onSaved;
   final JournalEntry? entry;
@@ -259,6 +261,7 @@ class _EntryEditorState extends State<EntryEditor> {
           TextField(controller: _title, maxLength: 100, decoration: InputDecoration(labelText: copy.titleLabel, hintText: copy.titleHint)),
           VoiceCapture(
             onTranscribe: widget.controller.transcribe,
+            recorderFactory: widget.voiceRecorderFactory,
             prompt: copy.recordPrompt,
             onRecordingChanged: widget.controller.sound.onRecordingChanged,
             onTranscript: (text) {
