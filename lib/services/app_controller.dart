@@ -311,21 +311,41 @@ class AppController extends ChangeNotifier {
   }
 
   /// Creates a profile with the choices from the setup flow and selects it.
-  Future<SpaceProfile> addProfile(String name, String kind, {String? themeId, String? voice}) async {
+  Future<SpaceProfile> addProfile(String name, String kind,
+      {String? themeId, String? voice, ProfileDetails details = ProfileDetails.empty}) async {
     var created = await repository.addProfile(name.trim(), kind);
-    if (themeId != null && themeId != created.themeId) {
-      created = await repository.updateProfile(created.copyWith(themeId: themeId));
-    }
     if (voice != null) profileVoices[created.id] = voice;
+    final themeChanged = themeId != null && themeId != created.themeId;
+    final detailsChanged = details != created.details;
+    Object? followUpError;
+    if (themeChanged || detailsChanged) {
+      try {
+        created = await repository.updateProfile(created.copyWith(themeId: themeId, details: details),
+            theme: themeChanged, details: detailsChanged);
+      } catch (e) {
+        followUpError = e; // the profile itself exists: don't let a retry create a duplicate
+      }
+    }
     await refresh();
     selectProfile(created.id);
+    if (followUpError != null) throw ProfileSetupIncomplete(created, followUpError);
     return created;
   }
 
   Future<void> setTheme(String themeId) async {
     final current = profile;
     if (current == null || current.themeId == themeId) return;
-    final saved = await repository.updateProfile(current.copyWith(themeId: themeId));
+    final saved = await repository.updateProfile(current.copyWith(themeId: themeId), details: false);
+    profiles = [for (final p in profiles) p.id == saved.id ? saved : p];
+    revision++;
+    notifyListeners();
+  }
+
+  /// Saves the active profile's optional "About me" details.
+  Future<void> setDetails(ProfileDetails details) async {
+    final current = profile;
+    if (current == null || current.details == details) return;
+    final saved = await repository.updateProfile(current.copyWith(details: details), theme: false);
     profiles = [for (final p in profiles) p.id == saved.id ? saved : p];
     revision++;
     notifyListeners();
@@ -424,11 +444,25 @@ class AppController extends ChangeNotifier {
     if (id == null) return Future.error(StateError('Choose a profile first.'));
     return repository.calendarSummary(id, view, date, projectId: calendarProjectId);
   }
-  Future<List<WritingPrompt>> detailPrompts(String text) => repository.detailPrompts(text, kind: kind);
+  Future<List<WritingPrompt>> detailPrompts(String text) =>
+      repository.detailPrompts(text, kind: kind, profileId: selectedProfileId);
 
   @override
   void dispose() {
     sound.dispose();
     super.dispose();
   }
+}
+
+/// Thrown by [AppController.addProfile] when the profile was created but its
+/// chosen theme or "About me" details could not be saved. The profile exists
+/// and is selected; only the extras are missing.
+class ProfileSetupIncomplete implements Exception {
+  ProfileSetupIncomplete(this.profile, this.cause);
+  final SpaceProfile profile;
+  final Object cause;
+
+  @override
+  String toString() => 'Profile created, but its look or details were not saved ($cause). '
+      'You can set them in Settings.';
 }

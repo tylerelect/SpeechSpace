@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../models/models.dart';
 import '../services/app_controller.dart';
+import '../services/profile_questions.dart';
 import '../services/writing_prompts.dart';
 import 'voice_capture.dart';
 
@@ -270,6 +271,11 @@ class _EntryEditorState extends State<EntryEditor> {
               _message('Transcript added. You can edit it.');
             },
           ),
+          // Questions are worded for today ("How was school today?"), so they're
+          // only offered for today's entries, not back-dated ones.
+          if (DateUtils.isSameDay(_date, DateTime.now())) _ProfileQuestions(
+            prompts: startingPrompts(widget.controller.profile, _date, used: _usedPrompts),
+            kids: copy.isKids, onTap: _usePrompt),
           const SizedBox(height: 12),
           TextField(controller: _body, focusNode: _bodyFocus, minLines: 5, maxLines: 9, maxLength: 8000,
             decoration: InputDecoration(labelText: copy.bodyLabel, alignLabelWithHint: true,
@@ -319,6 +325,38 @@ class _EntryEditorState extends State<EntryEditor> {
           const SizedBox(height: 20),
         ]),
       ),
+    ));
+  }
+}
+
+/// Conversation starters from the profile's "About me" details ("How was
+/// school today?"). Shown even before anything is written, since they're meant
+/// to help get started. Hidden when the profile has none to offer.
+class _ProfileQuestions extends StatelessWidget {
+  const _ProfileQuestions({required this.prompts, required this.kids, required this.onTap});
+  final List<WritingPrompt> prompts;
+  final bool kids;
+  final ValueChanged<WritingPrompt> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (prompts.isEmpty) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(padding: const EdgeInsets.only(top: 12), child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(kids ? 'Need an idea?' : 'Starting points', style: TextStyle(fontWeight: FontWeight.w600,
+            color: scheme.onSurfaceVariant)),
+        const SizedBox(height: 6),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final p in prompts) ActionChip(
+            key: ValueKey('question-${p.id}'),
+            avatar: Icon(p.icon, size: kids ? 20 : 18, color: scheme.primary),
+            label: Text(p.label, style: kids ? const TextStyle(fontSize: 15) : null),
+            padding: kids ? const EdgeInsets.symmetric(horizontal: 6, vertical: 8) : null,
+            onPressed: () => onTap(p),
+          ),
+        ]),
+      ],
     ));
   }
 }

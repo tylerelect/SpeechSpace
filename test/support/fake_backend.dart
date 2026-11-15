@@ -99,9 +99,14 @@ class FakeBackend {
           final p = profiles.where((p) => p['id'] == id).firstOrNull;
           if (p == null) return _error(404, 'Profile not found.');
           final allowed = p['kind'] == 'adult' ? ['indigo', 'teal', 'slate'] : ['space', 'ocean', 'sunshine'];
-          if (!allowed.contains(body['themeId'])) return _error(422, 'Invalid theme for profile kind.');
-          patches.add('$id:${body['themeId']}');
-          p['themeId'] = body['themeId'];
+          if (body.containsKey('themeId')) {
+            if (!allowed.contains(body['themeId'])) return _error(422, 'Invalid theme for profile kind.');
+            if (body['themeId'] != p['themeId']) patches.add('$id:${body['themeId']}');
+            p['themeId'] = body['themeId'];
+          }
+          for (final key in const ['age', 'school', 'favoriteColor', 'interests', 'occupation', 'goals']) {
+            if (body.containsKey(key)) p[key] = body[key];
+          }
           return _json(p);
         }
         if (req.method == 'DELETE' && path.startsWith('/api/profiles/')) {

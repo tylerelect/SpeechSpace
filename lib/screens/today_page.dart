@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../models/models.dart';
 import '../services/app_controller.dart';
+import '../services/profile_questions.dart';
 import '../widgets/entry_editor.dart';
 import '../widgets/commander_video.dart';
 import '../widgets/space_art.dart';
@@ -40,7 +41,8 @@ class TodayPage extends StatelessWidget {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(copy.questionLabel, style: theme.textTheme.labelSmall?.copyWith(letterSpacing: 1.2, color: muted)),
           const SizedBox(height: 4),
-          Text(copy.question, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          Text(dailyQuestion(controller.profile, today, fallback: copy.question),
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 2),
           Text(copy.questionHelp, style: TextStyle(color: muted)),
         ])),
@@ -95,7 +97,9 @@ class _KidsMission extends StatelessWidget {
           Text(copy.questionLabel, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 1.5,
               color: scheme.onPrimaryContainer)),
           const SizedBox(height: 10),
-          Text(copy.question, style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+          // Personalized from the profile's "About me" details when there are any.
+          Text(dailyQuestion(controller.profile, DateTime.now(), fallback: copy.question),
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w800, color: scheme.onPrimaryContainer)),
           const SizedBox(height: 10),
           Text(copy.questionHelp, style: TextStyle(color: scheme.onPrimaryContainer)),
