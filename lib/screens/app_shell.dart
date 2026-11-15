@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../models/calendar.dart';
 import '../models/models.dart';
 import '../services/app_controller.dart';
 import '../theme/space_themes.dart';
+import 'activity_heatmap_page.dart';
 import 'calendar_page.dart';
 import 'mind_map_page.dart';
 import 'profile_setup_page.dart';
@@ -21,6 +23,35 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _selected = 0;
+
+  static const calendarTab = 1;
+  static const activityTab = 4;
+  static const settingsTab = 5;
+
+  /// Narrow layouts show the first [_primaryTabs] destinations plus "More".
+  static const _primaryTabs = 4;
+
+  void _openDay(DateTime date) {
+    widget.controller.setCalendar(CalendarView.day, date);
+    setState(() => _selected = calendarTab);
+  }
+
+  Future<void> _openMore(BuildContext context, List<(IconData, IconData, String)> nav) async {
+    final choice = await showModalBottomSheet<int>(context: context, showDragHandle: true, builder: (ctx) => SafeArea(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        for (var i = _primaryTabs; i < nav.length; i++) ListTile(
+          key: ValueKey('more-$i'),
+          leading: Icon(_selected == i ? nav[i].$2 : nav[i].$1),
+          title: Text(nav[i].$3),
+          selected: _selected == i,
+          trailing: _selected == i ? const Icon(Icons.check) : null,
+          onTap: () => Navigator.pop(ctx, i),
+        ),
+        const SizedBox(height: 8),
+      ]),
+    ));
+    if (choice != null && mounted) setState(() => _selected = choice);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +81,7 @@ class _AppShellState extends State<AppShell> {
         (Icons.calendar_month_outlined, Icons.calendar_month, copy.navCalendar),
         (Icons.auto_stories_outlined, Icons.auto_stories, copy.navMemories),
         (copy.isKids ? Icons.auto_awesome_outlined : Icons.hub_outlined, copy.isKids ? Icons.auto_awesome : Icons.hub, copy.navMindMap),
+        (Icons.grid_view_outlined, Icons.grid_view_rounded, copy.navActivity),
         (Icons.settings_outlined, Icons.settings, copy.navSettings),
       ];
       final pages = [
@@ -57,6 +89,7 @@ class _AppShellState extends State<AppShell> {
         CalendarPage(controller: controller),
         TimelinePage(controller: controller),
         MindMapPage(controller: controller),
+        ActivityHeatmapPage(controller: controller, onOpenDay: _openDay),
         SettingsPage(controller: controller),
       ];
       final width = MediaQuery.sizeOf(context).width;
@@ -95,15 +128,26 @@ class _AppShellState extends State<AppShell> {
                 NavigationRailDestination(icon: Icon(n.$1), selectedIcon: Icon(n.$2), label: Text(n.$3))],
             ),
           if (wide) const VerticalDivider(width: 1),
-          Expanded(child: controller.profile == null && _selected != 4
+          Expanded(child: controller.profile == null && _selected != settingsTab
               ? _NoChild(controller: controller)
               : pages[_selected]),
         ]),
+        // Six destinations don't fit a phone-width bar: keep four plus "More"
+        // (Activity, Settings) so labels never overflow.
         bottomNavigationBar: wide ? null : NavigationBar(
-          selectedIndex: _selected,
-          onDestinationSelected: (i) => setState(() => _selected = i),
-          destinations: [for (final n in nav)
-            NavigationDestination(icon: Icon(n.$1), selectedIcon: Icon(n.$2), label: n.$3)],
+          selectedIndex: _selected < _primaryTabs ? _selected : _primaryTabs,
+          onDestinationSelected: (i) => i < _primaryTabs ? setState(() => _selected = i) : _openMore(context, nav),
+          destinations: [
+            for (final n in nav.take(_primaryTabs))
+              NavigationDestination(icon: Icon(n.$1), selectedIcon: Icon(n.$2), label: n.$3),
+            NavigationDestination(
+              key: const ValueKey('nav-more'),
+              icon: const Icon(Icons.more_horiz),
+              selectedIcon: Icon(_selected == activityTab ? nav[activityTab].$2 : nav[settingsTab].$2),
+              label: _selected >= _primaryTabs ? nav[_selected].$3 : 'More',
+              tooltip: 'More: ${nav.skip(_primaryTabs).map((n) => n.$3).join(', ')}',
+            ),
+          ],
           labelBehavior: copy.isKids
               ? NavigationDestinationLabelBehavior.alwaysShow
               : NavigationDestinationLabelBehavior.onlyShowSelected,
