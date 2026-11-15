@@ -295,7 +295,12 @@ class RemoteRepository implements MemoryRepository {
   }
 
   @override
-  Future<AppSnapshot> load() async => AppSnapshot.fromJson(await _request('GET', '/api/snapshot'));
+  Future<AppSnapshot> load() async {
+    if (devToken.trim().isEmpty) {
+      throw StateError('Backend access token is missing. Configure DEV_API_TOKEN and rebuild the app.');
+    }
+    return AppSnapshot.fromJson(await _request('GET', '/api/snapshot'));
+  }
 
   @override
   Future<SpaceProfile> addProfile(String name, String kind) async =>

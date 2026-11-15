@@ -39,7 +39,6 @@ Select **Runner**, choose your iPhone or simulator, and confirm **Product > Sche
 > Edit Scheme > Run > Info > Debug**. For a physical iPhone, select your development
 team under **Runner > Signing & Capabilities**. Press **Run (▶)**.
 
-For demo mode, run `python3 scripts/configure_ios_debug.py --demo`, then Stop/Run.
 The Git-ignored `ios/Flutter/Debug.local.xcconfig` survives normal regeneration.
 `--no-codesign` above only prepares configuration; Xcode still signs device builds.
 
@@ -52,7 +51,8 @@ On macOS: `open -a "Android Studio" .`
 
 Start an emulator in **Device Manager**, or connect an Android phone with USB
 debugging enabled. Select **SpeechSpace (Remote API)** and the device, then **Run**.
-For offline demo, select **SpeechSpace (Demo)**; no token setup is required.
+All normal launches use the live backend, including Debug and Release.
+Missing credentials show an error; there is no automatic demo fallback.
 
 ## Change the backend URL
 
@@ -74,10 +74,6 @@ machine only. It fails until the permanent hostname serves HTTPS.
 
 ## Troubleshooting and notes for maintainers
 
-- **"Speech model not configured. Connect an STT adapter in the backend."** means the
-  app is in **demo mode** (`API_BASE_URL` was empty). It comes from
-  `DemoRepository`, not the backend. Check the selected run configuration, use
-  Stop/Run (not hot reload), and on iOS check for `ios/Flutter/Debug.local.xcconfig`.
 - A real backend speech failure says "Speech adapter not configured…". Fix it in
   the **backend** `.env` (`STT_ENDPOINT_URL` or `STT_PROVIDER=elevenlabs` plus key/model).
 - A 401 or "not authorized" error means `DEV_API_TOKEN` in `config/dev.local.json`

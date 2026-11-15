@@ -49,15 +49,12 @@ Stop and Run again in Xcode to recompile. A Quick Tunnel URL can change when
 the tunnel restarts; use the same script with the replacement URL. Updating
 `.env` alone does not refresh the generated override; rerun the script.
 
-## Demo mode
+## Live data in every build
 
-```sh
-python3 scripts/configure_ios_debug.py --demo
-```
-
-Stop and Run again. This explicitly sets both defines to empty, even if stale
-remote defines remain in Generated.xcconfig. The existing demo selection in
-`lib/main.dart` and all Flutter UI remain unchanged.
+Debug and Release use `https://api.speechspace.health` by default. Missing or empty
+API_BASE_URL never selects demo data. DEV_API_TOKEN is still required; no token is
+hardcoded in source. DemoRepository remains only for isolated tests. The setup
+script no longer accepts --demo, and the Demo IDE launcher has been removed.
 
 ## Checks
 

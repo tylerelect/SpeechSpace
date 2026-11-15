@@ -7,7 +7,8 @@ optional include in `ios/Flutter/Debug.xcconfig`. Do not commit `.env`,
 `config/*.local.json`, or `ios/Flutter/Debug.local.xcconfig`.
 
 On another computer, the missing optional Xcode file does not prevent builds.
-Flutter uses its normally generated Dart defines (demo if no API URL is supplied).
+Flutter uses its normally generated Dart defines. The default API is
+`https://api.speechspace.health`; missing credentials show a configuration error.
 For Xcode remote development, follow `docs/xcode-debug-backend.md` and generate
 that computer's local file. Android Studio's Android/web runs keep using the
 launch configurations below. Release/Profile do not include the Xcode override.

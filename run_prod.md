@@ -1,5 +1,169 @@
 # Deploy a production copy of SpeechSpace
 
+## Update the existing Debian LXC backend
+
+Use this section for the Python/systemd installation at `192.168.0.246`, with
+service `speechspace` and files in `/opt/speechspace`. It does not require Docker.
+The Docker instructions later in this document describe a separate deployment.
+
+**On your Mac, from the repository root:** stage the new code without replacing
+the running backend or its `.env`:
+
+```bash
+ssh root@192.168.0.246 'mkdir -p /opt/speechspace/incoming'
+scp backend/app.py backend/requirements.txt \
+  root@192.168.0.246:/opt/speechspace/incoming/
+```
+
+After both transfers succeed, run this **from your Mac**. The block executes
+inside the LXC, saves a dated code backup, installs dependencies, and restarts
+the API. It stops on errors; the existing server `.env` is retained.
+
+```bash
+ssh root@192.168.0.246 bash -s <<'REMOTE'
+set -eu
+cd /opt/speechspace
+test -s incoming/app.py
+test -s incoming/requirements.txt
+test -f .env
+backup="backups/$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$backup"
+cp backend/app.py backend/requirements.txt "$backup/"
+.venv/bin/python -c "import ast; from pathlib import Path; ast.parse(Path('incoming/app.py').read_text())"
+.venv/bin/pip install -r incoming/requirements.txt
+install -o speechspace -g speechspace -m 644 incoming/app.py backend/app.py
+install -o speechspace -g speechspace -m 644 incoming/requirements.txt backend/requirements.txt
+systemctl restart speechspace
+sleep 2
+systemctl is-active speechspace
+curl --fail --retry 5 --retry-connrefused --retry-delay 2 http://127.0.0.1:8000/health
+printf '\nCode backup: /opt/speechspace/%s\n' "$backup"
+REMOTE
+```
+
+Dependency installation updates the existing virtual environment. The code backup
+does not snapshot that environment or the database. If an update fails, inspect
+the logs before retrying. A normal code update does not require restarting
+`cloudflared` or rebuilding Flutter unless the client code, token, or URL changed.
+
+**LXC console or SSH session — inspect services/logs:**
+
+```bash
+systemctl status speechspace cloudflared --no-pager
+journalctl -u speechspace -n 60 --no-pager
+```
+
+**Mac — verify the public route:**
+
+```bash
+curl --fail https://api.speechspace.health/health
+python3 - <<'PY'
+import json, urllib.request
+from pathlib import Path
+settings = json.loads(Path('config/dev.local.json').read_text())
+request = urllib.request.Request(
+    'https://api.speechspace.health/api/snapshot',
+    headers={
+        'Authorization': 'Bearer ' + settings['DEV_API_TOKEN'],
+        'User-Agent': 'SpeechSpace-check/1.0',
+    },
+)
+with urllib.request.urlopen(request, timeout=30) as response:
+    print('Authenticated snapshot HTTP', response.status)
+PY
+```
+
+Expect HTTP 200. Local `/health` alone does not prove public access or MongoDB
+connectivity. A public 403 still needs access-rule/backend investigation.
+
+Do not copy your Mac's `.env` over the server during routine code updates. For an
+intentional credential change, edit the server `.env`, restart `speechspace`, and
+update the matching local `.env`. Then synchronize and rebuild the apps:
+
+```bash
+python3 scripts/configure_ios_debug.py --url https://api.speechspace.health --sync-android
+```
+
+## Frontend: build, install, and run on iPhone
+
+Run these commands **on your Mac, from the repository root**, after the backend
+update. The local `.env` token must match the server. Connect and unlock the
+iPhone; Developer Mode, computer trust, and Xcode signing must be configured.
+
+```bash
+python3 scripts/configure_ios_debug.py --url https://api.speechspace.health --sync-android
+flutter pub get
+flutter devices
+
+flutter build ios --release \
+  --dart-define-from-file=config/dev.local.json \
+  --dart-define=API_BASE_URL=https://api.speechspace.health
+```
+
+Once the build succeeds, install and launch on Tyler's physical iPhone:
+
+```bash
+xcrun devicectl device install app \
+  --device 00008140-001054EC3A79801C \
+  build/ios/iphoneos/Runner.app
+
+xcrun devicectl device process launch \
+  --device 00008140-001054EC3A79801C \
+  com.example.speechspace
+```
+
+Replace the device ID for a different iPhone. These direct Apple install/launch
+commands worked when `flutter run --release` failed during installation. If iOS
+asks you to trust the developer, approve it in Settings and rerun the launch
+command. See [run_iphone_release.md](run_iphone_release.md) for details.
+
+## Frontend: build, install, and run on Android
+
+Run **on your Mac, from the repository root**. Connect an Android phone with USB
+debugging enabled and accept its computer authorization prompt. Use a physical
+phone for Release testing. The Android SDK comes with Android Studio.
+
+```bash
+python3 scripts/configure_ios_debug.py --url https://api.speechspace.health --sync-android
+flutter pub get
+flutter devices
+
+flutter build apk --release \
+  --dart-define-from-file=config/dev.local.json \
+  --dart-define=API_BASE_URL=https://api.speechspace.health
+```
+
+After the build succeeds, list devices and replace `REPLACE_WITH_ANDROID_SERIAL`
+with the Android phone's serial from `adb devices -l`:
+
+```bash
+ANDROID_ADB="$HOME/Library/Android/sdk/platform-tools/adb"
+"$ANDROID_ADB" devices -l
+ANDROID_DEVICE_SERIAL='REPLACE_WITH_ANDROID_SERIAL'
+
+"$ANDROID_ADB" -s "$ANDROID_DEVICE_SERIAL" install -r \
+  build/app/outputs/flutter-apk/app-release.apk
+
+"$ANDROID_ADB" -s "$ANDROID_DEVICE_SERIAL" shell am start \
+  -n com.example.speechspace/.MainActivity
+```
+
+If your SDK lives elsewhere, adjust `ANDROID_ADB`. Wait for installation to report
+`Success` before launching. If Android reports a signing-key mismatch, use the
+original signing key; uninstalling the old app would remove its local data.
+
+These are presentation builds of the existing prototype, using the current
+backend token. Android Release currently uses the debug signing key; it is not
+configured for Play Store publication. The installed apps can open without the
+Mac running, provided the backend and tunnel remain online.
+
+After major pulls or stale-build problems, run `flutter clean` before
+`flutter pub get`. It is not required for each build. Rebuild and reinstall after
+client code, token, or URL changes. Verify that profiles load and a test entry
+can be saved/retrieved; successful installation alone does not prove API access.
+
+## Optional separate Docker deployment
+
 This runs a **separate production stack** next to the dev backend. It has its own
 container, database, token and Cloudflare named tunnel at
 `https://api.speechspace.health`. It also covers building the Flutter app that

@@ -1,7 +1,0 @@
-<component name="ProjectRunConfigurationManager">
-  <!-- Offline demo mode: no API_BASE_URL, uses DemoRepository. -->
-  <configuration default="false" name="SpeechSpace (Demo)" type="FlutterRunConfigurationType" factoryName="Flutter">
-    <option name="filePath" value="$PROJECT_DIR$/lib/main.dart" />
-    <method v="2" />
-  </configuration>
-</component>

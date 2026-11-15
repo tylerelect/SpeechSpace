@@ -44,25 +44,20 @@ def write_private(target, content):
 def main():
     root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description=__doc__)
-    mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument('--url', help='HTTPS API origin, without /api/snapshot')
-    mode.add_argument('--demo', action='store_true', help='Override stale generated defines with demo mode')
+    parser.add_argument('--url', default='https://api.speechspace.health', help='HTTPS API origin')
     parser.add_argument('--env-file', type=Path, default=root / '.env', help='Backend dotenv file (default: repository .env)')
     parser.add_argument('--sync-android', action='store_true', help='Also update config/dev.local.json for Android Studio')
     args = parser.parse_args()
-    url = (args.url or '').rstrip('/')
+    url = args.url.rstrip('/')
     try:
-        token = '' if args.demo else read_token(args.env_file)
+        token = read_token(args.env_file)
     except ValueError:
         parser.error('Cannot parse APP_DEV_TOKEN in the env file; no files were written')
-    if args.demo and args.sync_android:
-        parser.error('Use Android Studio SpeechSpace (Demo); --sync-android requires --url')
-    if not args.demo:
-        parsed = urlsplit(url)
-        if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
-            parser.error('--url must be an HTTPS API URL without credentials, query, or fragment')
-        if not token.strip():
-            parser.error('Set APP_DEV_TOKEN in the env file first; no token was written')
+    parsed = urlsplit(url)
+    if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+        parser.error('--url must be an HTTPS API URL without credentials, query, or fragment')
+    if not token.strip():
+        parser.error('Set APP_DEV_TOKEN in the env file first; no token was written')
     defines = ','.join(base64.b64encode(value.encode()).decode() for value in (
         f'API_BASE_URL={url}', f'DEV_API_TOKEN={token}',
     ))
@@ -81,7 +76,7 @@ def main():
         settings.update(API_BASE_URL=url, DEV_API_TOKEN=token)
         write_private(android, json.dumps(settings, indent=2) + '\n')
         print('Android Studio local defines synchronized; token not printed.')
-    print(f'Configured Xcode Debug: {"demo mode" if args.demo else url}; token not printed.')
+    print(f'Configured Xcode Debug: {url}; token not printed.')
 
 
 if __name__ == '__main__':

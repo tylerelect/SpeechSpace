@@ -5,13 +5,19 @@ import 'services/repository.dart';
 import 'screens/app_shell.dart';
 import 'widgets/cursor_trail.dart';
 
+/// Normal launches always use the live API. DemoRepository is a test fixture.
+RemoteRepository createRepository({
+  String baseUrl = const String.fromEnvironment('API_BASE_URL',
+      defaultValue: 'https://api.speechspace.health'),
+  String devToken = const String.fromEnvironment('DEV_API_TOKEN'),
+}) => RemoteRepository(
+  baseUrl: baseUrl.trim().isEmpty ? 'https://api.speechspace.health' : baseUrl,
+  devToken: devToken,
+);
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  const url = String.fromEnvironment('API_BASE_URL');
-  const token = String.fromEnvironment('DEV_API_TOKEN');
-  final repository = url.isEmpty
-      ? DemoRepository()
-      : RemoteRepository(baseUrl: url, devToken: token);
+  final repository = createRepository();
   final controller = AppController(repository)..initialize();
   runApp(SpeechSpaceApp(controller: controller));
 }

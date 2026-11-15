@@ -18,6 +18,18 @@ class DelayedRepository extends DemoRepository {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  test('normal launches always use production, even with an empty URL', () {
+    for (final repo in [createRepository(), createRepository(baseUrl: '')]) {
+      expect(repo.isDemo, isFalse);
+      expect(repo.baseUrl, 'https://api.speechspace.health');
+    }
+  });
+
+  test('missing credentials fail explicitly rather than showing demo data', () async {
+    await expectLater(createRepository(devToken: '').load(),
+        throwsA(isA<StateError>()));
+  });
+
   testWidgets('stalled preferences release startup and late results cannot switch profiles', (tester) async {
     final preferences = Completer<SharedPreferences>();
     final controller = AppController(DemoRepository(), preferencesLoader: () => preferences.future);

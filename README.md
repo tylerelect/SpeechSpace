@@ -7,7 +7,7 @@ An editable, parent-managed **childhood memory journal** prototype. Children can
 ## What's implemented
 
 - Responsive Flutter UI for **web, Android, and iOS**: Today, Calendar, Memories, Mind Map, Settings.
-- Synthetic demo child and sample memories; add/edit/delete memories and profiles; search memories.
+- Persisted child/adult profiles and memories from the live backend; add/edit/delete and search.
 - Calendar with marked recording days and entries per date. Guardian-marked milestones can be filtered in the history.
 - Editable mind map with draggable memory cards, persistent (server-side) links, and unlinking. Node positions are intentionally **session-only** in this version.
 - Microphone capture on supported devices, assembled into a WAV recording (max 90 seconds), forwarded to a separate transcription endpoint.
@@ -17,19 +17,22 @@ An editable, parent-managed **childhood memory journal** prototype. Children can
 
 **Not implemented:** production parental accounts/consent, offline persistence, push notifications, sync conflict handling, diagnostic/developmental scoring, production-grade privacy/security, choice of an STT model. The voice button is real recording but transcription requires configuring an adapter. Without backend, Gemini and STT show an informative configuration error; they do **not** generate a fake result.
 
-## 1. Run immediately (demo data, no API keys)
+## 1. Run against the live backend
 
-Install a current Flutter SDK (Flutter 3.35+ recommended; check constraints and package resolutions with your installed SDK). From this directory:
+Debug and Release default to `https://api.speechspace.health`. All normal launches
+load the same persisted profiles and entries. There is no demo fallback; a missing
+DEV_API_TOKEN produces a configuration error. DemoRepository is retained for tests.
+
+With APP_DEV_TOKEN set in the local Git-ignored .env:
 
 ```bash
-flutter create --platforms=android,ios,web .
 flutter pub get
-flutter run -d chrome --web-port 5173
+python3 scripts/configure_ios_debug.py --sync-android
+flutter run --dart-define-from-file=config/dev.local.json
 ```
 
-`flutter create` generates the standard native Android/iOS/web runners missing from this source-only archive; it should retain `lib/` and `pubspec.yaml`. You can also run `flutter run -d android` or select a connected device.
-
-In demo mode, **changes are kept in RAM and disappear on restart**. Use fictional names and memories for demonstrations.
+See [run.md](run.md) for Xcode and Android Studio, and
+[run_iphone_release.md](run_iphone_release.md) for physical iPhone installation.
 
 ## 2. Connect MongoDB Atlas / FastAPI
 

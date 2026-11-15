@@ -35,31 +35,41 @@ class StartPage extends StatelessWidget {
           const Center(child: Chip(label: Text('DEMO • profiles are not saved'), visualDensity: VisualDensity.compact)),
         ],
         const SizedBox(height: 28),
-        Wrap(alignment: WrapAlignment.center, spacing: 16, runSpacing: 16, children: [
-          for (final p in profiles) _ProfileCard(profile: p, onTap: () => controller.enterApp(p.id)),
-          _NewProfileCard(onTap: () => _create(context)),
-        ]),
+        LayoutBuilder(builder: (context, constraints) {
+          // Fit up to 3 cards per row; scale down on narrow screens.
+          const maxPerRow = 3;
+          const spacing = 12.0;
+          final totalSpacing = spacing * (maxPerRow - 1);
+          final cardWidth = ((constraints.maxWidth - totalSpacing) / maxPerRow).clamp(100.0, 170.0);
+          final cardHeight = cardWidth * 1.12;
+          return Wrap(alignment: WrapAlignment.center, spacing: spacing, runSpacing: spacing, children: [
+            for (final p in profiles) _ProfileCard(profile: p, onTap: () => controller.enterApp(p.id), width: cardWidth, height: cardHeight),
+            _NewProfileCard(onTap: () => _create(context), width: cardWidth, height: cardHeight),
+          ]);
+        }),
       ]),
     ))));
   }
 }
 
 class _ProfileCard extends StatelessWidget {
-  const _ProfileCard({required this.profile, required this.onTap});
+  const _ProfileCard({required this.profile, required this.onTap, required this.width, required this.height});
   final SpaceProfile profile;
   final VoidCallback onTap;
+  final double width;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
     final t = resolveTheme(profile.themeId, profile.kind);
     final dark = t.brightness == Brightness.dark;
-    return SizedBox(width: 170, height: 190, child: Card(
+    return SizedBox(width: width, height: height, child: Card(
       color: t.background,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22), side: BorderSide(color: t.seed.withValues(alpha: .5))),
       child: InkWell(
         borderRadius: BorderRadius.circular(22),
         onTap: onTap,
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        child: FittedBox(fit: BoxFit.scaleDown, child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           CircleAvatar(radius: 34, backgroundColor: t.seed,
               child: Icon(profile.isKids ? Icons.rocket_launch_rounded : Icons.person_outline, size: 32, color: Colors.white)),
           const SizedBox(height: 14),
@@ -68,33 +78,35 @@ class _ProfileCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text('${profile.isKids ? 'Kids' : 'Adult'} • ${t.label}',
               style: TextStyle(color: dark ? Colors.white70 : Colors.black54)),
-        ]),
+        ])),
       ),
     ));
   }
 }
 
 class _NewProfileCard extends StatelessWidget {
-  const _NewProfileCard({required this.onTap});
+  const _NewProfileCard({required this.onTap, required this.width, required this.height});
   final VoidCallback onTap;
+  final double width;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return SizedBox(width: 170, height: 190, child: Card(
+    return SizedBox(width: width, height: height, child: Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22),
           side: BorderSide(color: scheme.outlineVariant, width: 1.5)),
       child: InkWell(
         borderRadius: BorderRadius.circular(22),
         onTap: onTap,
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        child: FittedBox(fit: BoxFit.scaleDown, child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           CircleAvatar(radius: 34, backgroundColor: scheme.primaryContainer,
               child: Icon(Icons.add, size: 34, color: scheme.onPrimaryContainer)),
           const SizedBox(height: 14),
           const Text('New profile', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
           const SizedBox(height: 2),
           Text('Kids or Adult', style: TextStyle(color: scheme.onSurfaceVariant)),
-        ]),
+        ])),
       ),
     ));
   }

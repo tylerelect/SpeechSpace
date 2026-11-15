@@ -81,7 +81,7 @@ class _AppShellState extends State<AppShell> {
             const SizedBox(height: 18),
             FilledButton(onPressed: controller.initialize, child: const Text('Retry')),
             const SizedBox(height: 12),
-            const Text('For an immediate demo, run without API_BASE_URL.', textAlign: TextAlign.center),
+            const Text('Check your connection and backend access settings, then retry.', textAlign: TextAlign.center),
           ])))));
       }
 
