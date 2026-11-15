@@ -133,13 +133,13 @@ flutter build apk --release \
   --dart-define=API_BASE_URL=https://api.speechspace.health
 ```
 
-After the build succeeds, list devices and replace `REPLACE_WITH_ANDROID_SERIAL`
+After the build succeeds, list devices and replace `17825792X`
 with the Android phone's serial from `adb devices -l`:
 
 ```bash
 ANDROID_ADB="$HOME/Library/Android/sdk/platform-tools/adb"
 "$ANDROID_ADB" devices -l
-ANDROID_DEVICE_SERIAL='REPLACE_WITH_ANDROID_SERIAL'
+ANDROID_DEVICE_SERIAL='17825792X'
 
 "$ANDROID_ADB" -s "$ANDROID_DEVICE_SERIAL" install -r \
   build/app/outputs/flutter-apk/app-release.apk
