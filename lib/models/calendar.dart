@@ -95,7 +95,8 @@ class CalendarData {
     required this.days,
     required this.entries,
     required this.truncated,
-  });
+    int? returnedCount,
+  }) : returnedCount = returnedCount ?? entries.length;
 
   final String profileId;
   final CalendarView view;
@@ -107,6 +108,8 @@ class CalendarData {
   final List<CalendarDayCount> days;
   /// Newest first; at most 200 (see [truncated]).
   final List<JournalEntry> entries;
+  /// Number of entries actually returned (≤ [maxCalendarEntries]).
+  final int returnedCount;
   final bool truncated;
 
   CalendarDayCount? countFor(DateTime day) {
@@ -158,6 +161,7 @@ class CalendarData {
         milestoneCount: (json['milestoneCount'] as num?)?.toInt() ?? 0,
         days: ((json['days'] as List?) ?? []).map((e) => CalendarDayCount.fromJson(Map<String, dynamic>.from(e as Map))).toList(),
         entries: ((json['entries'] as List?) ?? []).map((e) => JournalEntry.fromJson(Map<String, dynamic>.from(e as Map))).toList(),
+        returnedCount: (json['returnedCount'] as num?)?.toInt(),
         truncated: (json['truncated'] as bool?) ?? false,
       );
 }
@@ -179,6 +183,7 @@ class CalendarSummary {
     required this.highlights,
     required this.themes,
     required this.milestones,
+    this.sourceEntryIds = const [],
     this.demo = false,
   });
 
@@ -193,6 +198,8 @@ class CalendarSummary {
   final List<String> highlights;
   final List<String> themes;
   final List<String> milestones;
+  /// IDs of the entries the recap was generated from (the analyzed sample).
+  final List<String> sourceEntryIds;
   /// True for offline demo recaps (not from Gemini).
   final bool demo;
 
@@ -210,5 +217,14 @@ class CalendarSummary {
         highlights: _strings(json['highlights']),
         themes: _strings(json['themes']),
         milestones: _strings(json['milestones']),
+        sourceEntryIds: _strings(json['sourceEntryIds']),
       );
 }
+
+/// Title of the on-demand recap card for each view.
+String summaryTitle(CalendarView view) => switch (view) {
+      CalendarView.day => 'Day summary',
+      CalendarView.week => 'Weekly recap',
+      CalendarView.month => 'Monthly recap',
+      CalendarView.year => 'Year in review',
+    };

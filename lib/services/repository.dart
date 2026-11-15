@@ -132,6 +132,7 @@ class DemoRepository implements MemoryRepository {
       highlights: analyzed.take(3).map((e) => e.highlight.isNotEmpty ? e.highlight : e.title).toList(),
       themes: themes,
       milestones: analyzed.where((e) => e.isMilestone).map((e) => e.title).toList(),
+      sourceEntryIds: analyzed.map((e) => e.id).toList(),
       demo: true,
     );
   }
@@ -226,9 +227,24 @@ class DemoRepository implements MemoryRepository {
 /// Backend-controlled app API. The Dart client never holds Atlas or Gemini credentials.
 /// DEV_API_TOKEN is for a private prototype only, not public production authentication.
 class RemoteRepository implements MemoryRepository {
-  RemoteRepository({required this.baseUrl, required this.devToken});
+  RemoteRepository({required this.baseUrl, required this.devToken, http.Client? client}) : _client = client;
   final String baseUrl;
   final String devToken;
+
+  /// Optional injected client (tests). Otherwise each call uses the zone's
+  /// default client, so `http.runWithClient` keeps working too.
+  final http.Client? _client;
+
+  Future<T> _with<T>(Future<T> Function(http.Client c) run) async {
+    final injected = _client;
+    if (injected != null) return run(injected);
+    final c = http.Client();
+    try {
+      return await run(c);
+    } finally {
+      c.close();
+    }
+  }
   @override
   bool get isDemo => false;
 
@@ -237,14 +253,13 @@ class RemoteRepository implements MemoryRepository {
 
   Future<Map<String, dynamic>> _request(String method, String path, [Map<String, dynamic>? payload]) async {
     final uri = _uri(path);
-    late http.Response response;
-    switch (method) {
-      case 'GET': response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 15)); break;
-      case 'POST': response = await http.post(uri, headers: _headers, body: jsonEncode(payload)).timeout(const Duration(seconds: 20)); break;
-      case 'PATCH': response = await http.patch(uri, headers: _headers, body: jsonEncode(payload)).timeout(const Duration(seconds: 15)); break;
-      case 'DELETE': response = await http.delete(uri, headers: _headers).timeout(const Duration(seconds: 15)); break;
-      default: throw ArgumentError('Unsupported method');
-    }
+    final response = await _with((c) => switch (method) {
+          'GET' => c.get(uri, headers: _headers).timeout(const Duration(seconds: 15)),
+          'POST' => c.post(uri, headers: _headers, body: jsonEncode(payload)).timeout(const Duration(seconds: 20)),
+          'PATCH' => c.patch(uri, headers: _headers, body: jsonEncode(payload)).timeout(const Duration(seconds: 15)),
+          'DELETE' => c.delete(uri, headers: _headers).timeout(const Duration(seconds: 15)),
+          _ => throw ArgumentError('Unsupported method'),
+        });
     final decoded = _decode(response.body);
     final route = path.split('?').first;
     if (response.statusCode == 404 && decoded['detail'] == 'Not Found') {
@@ -303,8 +318,8 @@ class RemoteRepository implements MemoryRepository {
   Future<AiInsight> analyze(String text, {required String kind}) async =>
       AiInsight.fromJson(await _request('POST', '/api/analyze', {'text': text, 'kind': kind}));
 
-  /// PROPOSED ENDPOINT — not yet in the agreed contract; the backend developer
-  /// needs to implement it (see the PR description).
+  /// Agreed contract, implemented in `backend/app.py` (owner-scoped, mocked
+  /// Gemini tests in `backend/test_calendar.py`).
   ///
   /// `POST /api/expand`
   /// Request:  `{ "profileId": "...", "entryIds": ["..."], "kind": "kids" | "adult" }`
@@ -326,8 +341,8 @@ class RemoteRepository implements MemoryRepository {
         .toList();
   }
 
-  /// PROPOSED ENDPOINT — not yet in the agreed contract; the backend developer
-  /// needs to implement it (see the PR description).
+  /// Agreed contract, implemented in `backend/app.py` (mocked Gemini tests in
+  /// `backend/test_calendar.py`).
   ///
   /// `POST /api/prompts`
   /// Request:  `{ "text": "<draft, 1–8000 chars>", "kind": "kids" | "adult" }`
@@ -356,8 +371,8 @@ class RemoteRepository implements MemoryRepository {
       ..files.add(http.MultipartFile.fromBytes('file', wav, filename: 'daily-memory.wav', contentType: MediaType('audio', 'wav')));
     final http.Response response;
     try {
-      final streamed = await request.send().timeout(const Duration(seconds: 95));
-      response = await http.Response.fromStream(streamed);
+      response = await _with((c) async =>
+          http.Response.fromStream(await c.send(request).timeout(const Duration(seconds: 95))));
     } on TimeoutException {
       throw const ApiException(504, 'Transcription timed out. Your notes are safe; try a shorter recording.');
     }

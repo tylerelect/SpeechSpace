@@ -17,6 +17,7 @@ class ModeCopy {
     required this.navMemories,
     required this.navMindMap,
     required this.navSettings,
+    required this.navActivity,
     required this.entryNoun,
     required this.entryNounPlural,
     required this.editorNewTitle,
@@ -39,7 +40,7 @@ class ModeCopy {
   final String todaySection;
   final String todayEmpty;
   final String recentSection;
-  final String navToday, navCalendar, navMemories, navMindMap, navSettings;
+  final String navToday, navCalendar, navMemories, navMindMap, navSettings, navActivity;
   final String entryNoun, entryNounPlural;
   final String editorNewTitle, editorEditTitle;
   final String titleLabel, titleHint, bodyLabel, bodyHint;
@@ -64,6 +65,7 @@ class ModeCopy {
     navMemories: 'Stories',
     navMindMap: 'Star map',
     navSettings: 'Grown-ups',
+    navActivity: 'Activity',
     entryNoun: 'story',
     entryNounPlural: 'Stories',
     editorNewTitle: 'New story',
@@ -92,6 +94,7 @@ class ModeCopy {
     navMemories: 'Entries',
     navMindMap: 'Mind map',
     navSettings: 'Settings',
+    navActivity: 'Activity',
     entryNoun: 'entry',
     entryNounPlural: 'Entries',
     editorNewTitle: 'New entry',

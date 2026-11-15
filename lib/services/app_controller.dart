@@ -6,6 +6,7 @@ import '../models/calendar.dart';
 import '../models/models.dart';
 import '../theme/mode_copy.dart';
 import '../theme/space_themes.dart';
+import 'layout_store.dart';
 import 'repository.dart';
 import 'sound_service.dart';
 import 'writing_prompts.dart';
@@ -28,6 +29,18 @@ class AppController extends ChangeNotifier {
   String? selectedProfileId;
   /// '' = all entries; otherwise only entries in this project.
   String selectedProjectId = '';
+
+  /// Calendar navigation lives here (not in the widget) so it is predictable
+  /// across tabs and so other screens (e.g. Activity) can open a given day.
+  CalendarView calendarView = CalendarView.month;
+  DateTime calendarDate = _today();
+  static DateTime _today() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  /// Guards [refresh] against an older, slower snapshot overwriting a newer one.
+  int _loadSeq = 0;
 
   /// Bumped whenever data or the selection changes, so screens holding fetched
   /// data (e.g. the calendar) know to reload instead of showing stale results.
@@ -89,8 +102,21 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  Future<void> refresh() async {
+  Future<void> refresh() {
+    final seq = ++_loadSeq;
+    return _latestRefresh = _refresh(seq);
+  }
+
+  Future<void>? _latestRefresh;
+
+  Future<void> _refresh(int seq) async {
     final data = await repository.load();
+    if (seq != _loadSeq) {
+      // A newer refresh started while this one was in flight: drop this
+      // (possibly stale) snapshot and wait for the newest one instead.
+      await _latestRefresh;
+      return;
+    }
     profiles = data.children;
     entries = data.entries;
     links = data.links;
@@ -98,6 +124,7 @@ class AppController extends ChangeNotifier {
     if (selectedProfileId == null || !profiles.any((p) => p.id == selectedProfileId)) {
       selectedProfileId = profiles.isEmpty ? null : profiles.first.id;
       selectedProjectId = '';
+      _resetCalendar();
       sound.onProfileKindChanged(isKids);
     }
     if (selectedProjectId.isNotEmpty && !profileProjects.any((p) => p.id == selectedProjectId)) selectedProjectId = '';
@@ -136,12 +163,31 @@ class AppController extends ChangeNotifier {
     if (id == selectedProfileId) return;
     selectedProfileId = id;
     selectedProjectId = ''; // projects belong to one profile
+    _resetCalendar(); // calendar state is per profile; never carry it over
     sound.selectVoice(voice);
     sound.onProfileKindChanged(isKids);
     revision++;
     notifyListeners();
     _saveSelection();
   }
+
+  void _resetCalendar() {
+    calendarView = CalendarView.month;
+    calendarDate = _today();
+  }
+
+  /// Moves the calendar to [view] around [date] (e.g. a heat-map drilldown).
+  void setCalendar(CalendarView view, DateTime date) {
+    final day = DateTime(date.year, date.month, date.day);
+    if (view == calendarView && day == calendarDate) return;
+    calendarView = view;
+    calendarDate = day;
+    notifyListeners();
+  }
+
+  /// Project filter for calendar requests: Kids profiles are always scoped to
+  /// the whole profile; Adults may narrow to one project.
+  String get calendarProjectId => isKids ? '' : selectedProjectId;
 
   void selectProject(String id) {
     if (id.isNotEmpty && !profileProjects.any((p) => p.id == id)) return;
@@ -215,8 +261,10 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> deleteCurrentProfile() async {
-    if (selectedProfileId == null) return;
-    await repository.deleteChild(selectedProfileId!);
+    final id = selectedProfileId;
+    if (id == null) return;
+    await repository.deleteChild(id);
+    if (persistSelection) await MindMapLayoutStore.clear(id);
     selectedProjectId = '';
     await refresh();
     await _saveSelection();
@@ -263,7 +311,8 @@ class AppController extends ChangeNotifier {
     ideas.removeWhere((i) => i.id == idea.id);
     final label = idea.isRecommendation ? 'recommended' : 'idea';
     for (final source in idea.sourceIds) {
-      if (source == saved.id || !entries.any((e) => e.id == source)) continue;
+      // Only link to entries that still exist in the same profile.
+      if (source == saved.id || !entries.any((e) => e.id == source && e.childId == saved.childId)) continue;
       await repository.addLink(MemoryLink(id: '', childId: saved.childId, fromId: source, toId: saved.id, label: label));
     }
     await refresh();
@@ -295,14 +344,14 @@ class AppController extends ChangeNotifier {
   Future<CalendarData> calendar(CalendarView view, DateTime date) {
     final id = selectedProfileId;
     if (id == null) return Future.error(StateError('Choose a profile first.'));
-    return repository.calendar(id, view, date, projectId: selectedProjectId);
+    return repository.calendar(id, view, date, projectId: calendarProjectId);
   }
 
   /// On-demand recap; only called when the user taps Generate summary.
   Future<CalendarSummary> calendarSummary(CalendarView view, DateTime date) {
     final id = selectedProfileId;
     if (id == null) return Future.error(StateError('Choose a profile first.'));
-    return repository.calendarSummary(id, view, date, projectId: selectedProjectId);
+    return repository.calendarSummary(id, view, date, projectId: calendarProjectId);
   }
   Future<List<WritingPrompt>> detailPrompts(String text) => repository.detailPrompts(text, kind: kind);
 
