@@ -37,6 +37,8 @@ const adultThemes = <SpaceTheme>[
       background: Color(0xFFF5FAFA), icon: Icons.circle),
   SpaceTheme(id: 'slate', label: 'Slate', kind: 'adult', seed: Color(0xFF475569),
       background: Color(0xFFF6F7F9), icon: Icons.circle),
+  SpaceTheme(id: 'midnight', label: 'Midnight', kind: 'adult', seed: Color(0xFF6366F1),
+      background: Color(0xFF111318), icon: Icons.circle, brightness: Brightness.dark),
 ];
 
 List<SpaceTheme> themesFor(String kind) => kind == 'adult' ? adultThemes : kidsThemes;
@@ -67,11 +69,11 @@ ThemeData buildTheme(SpaceTheme t) {
     navigationRailTheme: NavigationRailThemeData(backgroundColor: t.background),
     cardTheme: CardThemeData(
       // Slightly see-through on dark so the night sky glows behind cards.
-      color: dark ? const Color(0xE61A1D4A) : const Color(0xF2FFFFFF),
+      color: dark ? (kids ? const Color(0xE61A1D4A) : const Color(0xFF1C1F26)) : const Color(0xF2FFFFFF),
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(radius),
-        side: BorderSide(color: dark ? const Color(0xFF2C3070) : scheme.outlineVariant.withValues(alpha: .6)),
+        side: BorderSide(color: dark ? (kids ? const Color(0xFF2C3070) : const Color(0xFF2E323B)) : scheme.outlineVariant.withValues(alpha: .6)),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(

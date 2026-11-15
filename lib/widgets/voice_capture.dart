@@ -29,11 +29,14 @@ class RecordPackageRecorder implements VoiceRecorder {
 /// transcription adapter. This widget does not pick or embed an STT model.
 class VoiceCapture extends StatefulWidget {
   const VoiceCapture({super.key, required this.onTranscribe, required this.onTranscript,
-      this.prompt = 'Speak your memory', this.onRecordingChanged, this.recorderFactory});
+      this.prompt = 'Speak your memory', this.onRecordingChanged, this.recorderFactory,
+      this.requireGuardianApproval = true});
 
   final Future<String> Function(Uint8List wav) onTranscribe;
   final ValueChanged<String> onTranscript;
   final String prompt;
+  /// Kids profiles need a guardian to tick a box before recording; Adult profiles don't.
+  final bool requireGuardianApproval;
   /// Lets the app pause background audio so it is not captured by the microphone.
   /// Always called in pairs: true when the microphone opens, false when it closes.
   final ValueChanged<bool>? onRecordingChanged;
@@ -205,12 +208,12 @@ class _VoiceCaptureState extends State<VoiceCapture> {
             Expanded(child: Text(_recording ? 'Recording… tap Stop when finished' : widget.prompt,
                 style: const TextStyle(fontWeight: FontWeight.w600))),
             FilledButton.tonalIcon(
-              onPressed: _working || (!_guardianApproved && !_recording) ? null : (_recording ? _stop : _start),
+              onPressed: _working || (widget.requireGuardianApproval && !_guardianApproved && !_recording) ? null : (_recording ? _stop : _start),
               icon: Icon(_recording ? Icons.stop_circle_outlined : Icons.fiber_manual_record),
               label: Text(_working ? 'Working…' : (_recording ? 'Stop' : 'Record')),
             ),
           ]),
-          CheckboxListTile(
+          if (widget.requireGuardianApproval) CheckboxListTile(
             contentPadding: EdgeInsets.zero,
             visualDensity: VisualDensity.compact,
             title: const Text('Guardian has approved this recording', style: TextStyle(fontSize: 12)),
