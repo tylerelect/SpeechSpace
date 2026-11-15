@@ -133,13 +133,15 @@ flutter build apk --release \
   --dart-define=API_BASE_URL=https://api.speechspace.health
 ```
 
-After the build succeeds, list devices and replace `17825792X`
-with the Android phone's serial from `adb devices -l`:
+After the build succeeds, list devices and set `ANDROID_DEVICE_SERIAL` to the
+**first column** of `adb devices -l` (for example `66041JEA306301`). Do not use
+the `usb:` value or add a prefix; a wrong serial gives `device ... not found`.
+With only one device connected you can omit `-s` entirely:
 
 ```bash
 ANDROID_ADB="$HOME/Library/Android/sdk/platform-tools/adb"
 "$ANDROID_ADB" devices -l
-ANDROID_DEVICE_SERIAL='17825792X'
+ANDROID_DEVICE_SERIAL='YOUR_SERIAL_FROM_FIRST_COLUMN'
 
 "$ANDROID_ADB" -s "$ANDROID_DEVICE_SERIAL" install -r \
   build/app/outputs/flutter-apk/app-release.apk
@@ -147,6 +149,11 @@ ANDROID_DEVICE_SERIAL='17825792X'
 "$ANDROID_ADB" -s "$ANDROID_DEVICE_SERIAL" shell am start \
   -n com.example.speechspace/.MainActivity
 ```
+
+If the app shows `Unauthorized demo token` (HTTP 401), the token baked into the
+build does not match the server's `APP_DEV_TOKEN`. Put the server's token in
+`config/prod.local.json` (see the production token section below), rebuild with
+`--dart-define-from-file=config/prod.local.json`, and reinstall.
 
 If your SDK lives elsewhere, adjust `ANDROID_ADB`. Wait for installation to report
 `Success` before launching. If Android reports a signing-key mismatch, use the
