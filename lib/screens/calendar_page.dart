@@ -419,9 +419,8 @@ class _SummaryCard extends StatelessWidget {
         return constraints.maxWidth >= 440 ? title
             : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [title, const SizedBox(height: 10), action]);
       }),
-      if (s == null && error == null && !loading) Padding(padding: const EdgeInsets.only(top: 8), child: Text(
-          hasEntries ? 'Tap Generate summary for a factual recap of this ${view.wire}. Nothing is saved.'
-              : 'No entries recorded for this ${view.wire}.',
+      if (s == null && error == null && !loading && !hasEntries) Padding(padding: const EdgeInsets.only(top: 8), child: Text(
+          'No entries recorded for this ${view.wire}.',
           style: theme.textTheme.bodySmall)),
       if (error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Row(children: [
         Expanded(child: Text(error!, style: TextStyle(color: theme.colorScheme.error))),

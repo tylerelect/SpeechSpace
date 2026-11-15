@@ -68,10 +68,10 @@ class _ActivityHeatmapPageState extends State<ActivityHeatmapPage> {
       padding: const EdgeInsets.all(22),
       children: [
         Text(copy.navActivity, style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
-        const SizedBox(height: 6),
-        Text(copy.isKids
-            ? 'Each square is a day. Stronger colors mean more stories that day.'
-            : 'Days with saved entries over the last 365 days. Stronger colors mean more entries that day.'),
+        if (!copy.isKids) ...[
+          const SizedBox(height: 6),
+          const Text('Days with saved entries over the last 365 days. Stronger colors mean more entries that day.'),
+        ],
         if (!copy.isKids) ...[const SizedBox(height: 12), ProjectFilter(controller: _c)],
         const SizedBox(height: 14),
         Wrap(spacing: 10, runSpacing: 10, children: [
@@ -352,8 +352,6 @@ class _TextSummary extends StatelessWidget {
               Text('${DateFormat.yMMM().format(m.month)}: ${m.entryCount}', style: theme.textTheme.bodySmall),
           ]),
         ],
-        const SizedBox(height: 8),
-        Text('Counts of saved notes only — not a score or an assessment.', style: theme.textTheme.bodySmall),
       ],
     )));
   }

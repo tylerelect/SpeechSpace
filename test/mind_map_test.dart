@@ -349,7 +349,7 @@ void main() {
       final c = await demo('demo-jordan');
       await pumpMap(tester, c, size: const Size(360, 740));
       expect(tester.takeException(), isNull);
-      expect(find.text('Pinch to zoom • drag the background to pan • drag a card to move it'), findsOneWidget);
+      expect(find.text('Pinch to zoom - drag the background to pan - drag a card to move it'), findsOneWidget);
     });
 
     testWidgets('zoomed-out cards allow panning and reactivate when zoomed in', (tester) async {

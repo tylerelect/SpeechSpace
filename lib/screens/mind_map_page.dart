@@ -468,8 +468,8 @@ class _MindMapPageState extends State<MindMapPage> {
         Text('This week: showing ${entries.length} of ${_weekEntries.length} entries', style: theme.textTheme.bodySmall),
         const SizedBox(height: 4),
         Text(_panOnly ? 'Overview: drag to move around. Zoom in to open or move cards.' : narrow
-            ? 'Pinch to zoom • drag the background to pan • drag a card to move it'
-            : 'Scroll or pinch to zoom • drag the background to pan • drag a card to move it • Esc clears the selection',
+            ? 'Pinch to zoom - drag the background to pan - drag a card to move it'
+            : 'Scroll or pinch to zoom - drag the background to pan - drag a card to move it - Esc clears the selection',
             key: const ValueKey('mindmap-hint'),
             style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
         const SizedBox(height: 6),

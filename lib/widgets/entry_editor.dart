@@ -452,7 +452,8 @@ class _DetailPrompts extends StatelessWidget {
     final scheme = theme.colorScheme;
     final muted = scheme.onSurfaceVariant;
     if (wordsNeeded > 0) {
-      return Text(kids ? 'Write a little to get story helpers ✨' : 'Write a sentence to get detail suggestions.',
+      if (kids) return const SizedBox.shrink();
+      return Text('Write a sentence to get detail suggestions.',
           style: theme.textTheme.bodySmall?.copyWith(color: muted));
     }
     final chipPadding = kids ? const EdgeInsets.symmetric(horizontal: 6, vertical: 8) : null;

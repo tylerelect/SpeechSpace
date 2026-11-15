@@ -222,7 +222,7 @@ class _VoiceCaptureState extends State<VoiceCapture> {
             controlAffinity: ListTileControlAffinity.leading,
           ),
           const SizedBox(height: 6),
-          const Text('Voice recognition uses a replaceable server adapter. Recording is capped at 90 seconds.',
+          const Text('Recording is capped at 90 seconds.',
               style: TextStyle(fontSize: 12)),
           if (_error != null) Padding(
             padding: const EdgeInsets.only(top: 10),

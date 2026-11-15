@@ -34,8 +34,10 @@ class _TimelinePageState extends State<TimelinePage> {
           FilledButton.icon(onPressed: () => openEntryEditor(context, widget.controller),
             icon: const Icon(Icons.add), label: const Text('Add')),
         ]),
-        const SizedBox(height: 6),
-        Text(copy.isKids ? 'All your stories in one place.' : 'Search, filter, and review past entries.'),
+        if (!copy.isKids) ...[
+          const SizedBox(height: 6),
+          const Text('Search, filter, and review past entries.'),
+        ],
         if (!copy.isKids) Padding(padding: const EdgeInsets.only(top: 12), child: ProjectFilter(controller: widget.controller)),
         const SizedBox(height: 14),
         TextField(onChanged: (v) => setState(() => _query = v),

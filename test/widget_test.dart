@@ -365,7 +365,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(theme: controller.theme, home: Scaffold(
         body: EntryEditor(controller: controller, initialDate: DateTime.now()))));
     await tester.pumpAndSettle();
-    expect(find.text('Write a little to get story helpers ✨'), findsOneWidget);
+    expect(find.text('Write a little to get story helpers ✨'), findsNothing);
 
     final body = find.widgetWithText(TextField, 'What happened?');
     await tester.enterText(body, 'Today I built a big sandcastle');
