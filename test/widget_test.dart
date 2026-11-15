@@ -19,6 +19,42 @@ Future<AppController> demoController() async {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  testWidgets('untitled entry offers automatic title or selectable suggestions', (tester) async {
+    tester.view.physicalSize = const Size(1000, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final controller = await demoController();
+    controller.enterApp('demo-jordan');
+    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(
+      body: TextButton(onPressed: () => openEntryEditor(context, controller), child: const Text('Open editor')),
+    ))));
+    Future<void> openUntitled() async {
+      await tester.tap(find.text('Open editor'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.widgetWithText(TextField, 'Notes'), 'Today I made a beautiful paper airplane');
+      await tester.ensureVisible(find.text('Save entry'));
+      await tester.tap(find.text('Save entry'));
+      await tester.pumpAndSettle();
+      expect(find.text('Auto generate a title?'), findsOneWidget);
+    }
+    await openUntitled();
+    await tester.tap(find.text('Cancel').last);
+    await tester.pumpAndSettle();
+    expect(find.byType(EntryEditor), findsOneWidget);
+    await tester.tap(find.text('Save entry'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Yes'));
+    await tester.pumpAndSettle();
+    expect(controller.profileEntries.first.title, 'Today I made a beautiful paper airplane');
+    await openUntitled();
+    await tester.tap(find.text('Pick one'));
+    await tester.pumpAndSettle();
+    expect(find.text('Pick a title'), findsOneWidget);
+    await tester.tap(find.text('Today I made a'));
+    await tester.pumpAndSettle();
+    expect(controller.profileEntries.first.title, 'Today I made a');
+  });
+
   testWidgets('entry editor is full screen and only closes explicitly or via back', (tester) async {
     final controller = await demoController();
     controller.enterApp('demo-jordan');

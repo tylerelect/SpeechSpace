@@ -40,7 +40,16 @@ class SettingsPage extends StatelessWidget {
     return Center(child: ConstrainedBox(
     constraints: const BoxConstraints(maxWidth: 850),
     child: ListView(padding: const EdgeInsets.all(22), children: [
-      Text(controller.copy.navSettings, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
+      Row(children: [
+        Expanded(child: Text(controller.copy.navSettings, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800))),
+        IconButton(
+          tooltip: 'Integration information',
+          icon: const Icon(Icons.help_outline),
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+            builder: (_) => _IntegrationsPage(controller: controller),
+          )),
+        ),
+      ]),
       if (controller.isKids) const Padding(padding: EdgeInsets.only(top: 4),
           child: Text('These settings are for a parent or guardian.')),
       const SizedBox(height: 14),
@@ -91,29 +100,34 @@ class SettingsPage extends StatelessWidget {
       ],
       const SizedBox(height: 12),
       Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Integrations', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 12),
-        _setting(Icons.storage_outlined, 'MongoDB Atlas', controller.demo ? 'Not connected • memory-only demo' : 'Connected through backend API'),
-        _setting(Icons.auto_awesome_outlined, 'Gemini Flash', 'Optional: highlights, calendar recaps, ideas and writing prompts • configured on the backend (GEMINI_API_KEY)'),
-        _setting(Icons.mic_none_outlined, 'Voice transcription', 'Configured on the backend: STT_ENDPOINT_URL, or the ElevenLabs adapter (STT_PROVIDER=elevenlabs)'),
-      ]))),
-      const SizedBox(height: 12),
-      Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Privacy and guardian controls', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 10),
-        const Text('Prototype only. Do not enter real children\'s personal data until guardian sign-in, verified consent, access controls, security review, privacy notices, and a retention policy are complete.'),
+        const Text('Do not enter real children\'s personal data until guardian sign-in, verified consent, access controls, security review, privacy notices, and a retention policy are complete.'),
         const SizedBox(height: 9),
-        const Text('Microphone use is initiated by the user. Voice uploads are processed only through your configured backend. This app does not infer medical or developmental diagnoses.'),
-        const SizedBox(height: 9),
-        if (controller.demo) const Text('Demo mode: changes are only held in memory and disappear when the application restarts.'),
+        const Text('This app does not infer medical or developmental diagnoses.'),
       ]))),
     ]),
   ));
   }
 
-  Widget _setting(IconData icon, String title, String sub) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    leading: Icon(icon), title: Text(title), subtitle: Text(sub),
+}
+
+class _IntegrationsPage extends StatelessWidget {
+  const _IntegrationsPage({required this.controller});
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Integrations')),
+    body: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 850),
+      child: ListView(padding: const EdgeInsets.all(22), children: [
+        ListTile(leading: const Icon(Icons.storage_outlined), title: const Text('MongoDB Atlas'),
+          subtitle: Text(controller.demo ? 'Memory-only demo' : 'Available through the backend API')),
+        const ListTile(leading: Icon(Icons.auto_awesome_outlined), title: Text('Gemini Flash'),
+          subtitle: Text('Optional highlights, calendar recaps, ideas and writing prompts.')),
+        const ListTile(leading: Icon(Icons.mic_none_outlined), title: Text('Voice transcription'),
+          subtitle: Text('Transcribes recordings through the configured backend service.')),
+      ]))),
   );
 }
 

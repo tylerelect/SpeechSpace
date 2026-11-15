@@ -100,6 +100,31 @@ class _TranscribingDemo extends DemoRepository {
 }
 
 void main() {
+  testWidgets('adult recording needs no guardian approval in editor or follow-up', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(1000, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final controller = AppController(_TranscribingDemo());
+    await controller.initialize();
+    controller.enterApp('demo-jordan');
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: EntryEditor(
+      controller: controller, initialDate: DateTime.now(), voiceRecorderFactory: FakeRecorder.new,
+    ))));
+    expect(find.text('Guardian has approved this recording'), findsNothing);
+    await tester.enterText(find.widgetWithText(TextField, 'Notes'), 'Today I finished my big project');
+    await tester.pump();
+    final prompt = find.text('Who was involved');
+    expect(prompt, findsOneWidget);
+    await tester.tap(prompt);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Record answer'));
+    await tester.pumpAndSettle();
+    expect(find.text('Guardian has approved this recording'), findsNothing);
+    final record = find.descendant(of: find.byType(AlertDialog), matching: find.text('Record'));
+    final button = tester.widget<FilledButton>(find.ancestor(of: record, matching: find.byType(FilledButton)));
+    expect(button.onPressed, isNotNull);
+  });
   testWidgets('a story prompt can record and append the transcribed answer', (tester) async {
     SharedPreferences.setMockInitialValues({});
     tester.view.physicalSize = const Size(1000, 1800);

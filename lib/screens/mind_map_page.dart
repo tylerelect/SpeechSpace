@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 
 import '../models/models.dart';
+import '../models/calendar.dart';
 import '../services/app_controller.dart';
 import '../services/layout_store.dart';
 import '../widgets/entry_editor.dart';
@@ -77,6 +78,39 @@ class _MindMapPageState extends State<MindMapPage> {
   }
 
   AppController get _c => widget.controller;
+  List<JournalEntry> get _weekEntries {
+    final week = CalendarPeriod.of(CalendarView.week, DateTime.now());
+    return _c.profileEntries.where((entry) => week.contains(entry.date)).toList();
+  }
+  List<StarIdea> get _weekIdeas {
+    final ids = _weekEntries.map((entry) => entry.id).toSet();
+    return _c.profileIdeas.where((idea) => idea.sourceIds.any(ids.contains)).take(3).toList();
+  }
+  List<JournalEntry> get _visibleEntries => _weekEntries.take(8 - _weekIdeas.length).toList();
+  bool _summarizing = false;
+
+  Future<void> _summarizeWeek() async {
+    final profile = _c.selectedProfileId;
+    final project = _c.selectedProjectId;
+    setState(() => _summarizing = true);
+    try {
+      final summary = await _c.calendarSummary(CalendarView.week, DateTime.now());
+      if (!mounted || profile != _c.selectedProfileId || project != _c.selectedProjectId) return;
+      await showDialog<void>(context: context, builder: (ctx) => AlertDialog(
+        title: const Text('This week'),
+        content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(summary.summary),
+          if (summary.partial) const Padding(padding: EdgeInsets.only(top: 12), child: Text('Summary includes a sample of this week’s entries.')),
+          if (summary.demo) const Padding(padding: EdgeInsets.only(top: 12), child: Text('Demo summary')),
+        ])),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
+      ));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_friendly(error))));
+    } finally {
+      if (mounted) setState(() => _summarizing = false);
+    }
+  }
 
 
   @override
@@ -102,7 +136,7 @@ class _MindMapPageState extends State<MindMapPage> {
       final slot = defaults[i];
       _positions[entries[i].id] = _isFree(slot) ? slot : _freeSpot(slot);
     }
-    final ideas = _c.profileIdeas;
+    final ideas = _weekIdeas;
     for (final idea in ideas) {
       _positions.putIfAbsent(idea.id, () {
         // Place each suggestion just outside the centre of its source stars.
@@ -112,7 +146,7 @@ class _MindMapPageState extends State<MindMapPage> {
         return _freeSpot(centre);
       });
     }
-    final live = {..._c.profileEntryIds, for (final i in ideas) i.id};
+    final live = {for (final entry in entries) entry.id, for (final i in ideas) i.id};
     _positions.removeWhere((key, _) => !live.contains(key));
     _positions.updateAll((_, p) => _clamp(p));
     if (_selectedId != null && !_positions.containsKey(_selectedId)) _selectedId = null;
@@ -128,11 +162,15 @@ class _MindMapPageState extends State<MindMapPage> {
     });
   }
 
-  void _saveLayout() {
+  Future<void> _saveLayout() async {
     final profileId = _childId;
     if (profileId == null) return;
-    final ids = _c.profileEntryIds; // ideas are session-only
-    MindMapLayoutStore.save(profileId, {for (final e in _positions.entries) if (ids.contains(e.key)) e.key: e.value});
+    final ids = Set<String>.of(_c.profileEntryIds);
+    final visible = {for (final e in _positions.entries) if (ids.contains(e.key)) e.key: e.value};
+    final saved = await MindMapLayoutStore.load(profileId);
+    saved.removeWhere((id, _) => !ids.contains(id));
+    saved.addAll(visible);
+    await MindMapLayoutStore.save(profileId, saved);
   }
 
   Future<void> _resetLayout() async {
@@ -203,7 +241,7 @@ class _MindMapPageState extends State<MindMapPage> {
 
   Future<void> _generateIdeas() async {
     final controller = _c;
-    final entries = controller.profileEntries;
+    final entries = _visibleEntries;
     if (entries.isEmpty) return;
     final kids = controller.isKids;
     final decor = KidsDecor.of(controller.spaceTheme.id);
@@ -311,7 +349,7 @@ class _MindMapPageState extends State<MindMapPage> {
   // ---- Manual links (unchanged behavior) ------------------------------------
 
   Future<void> _addConnection() async {
-    final entries = _c.profileEntries;
+    final entries = _visibleEntries;
     if (entries.length < 2) return;
     // Start from the selected card, if any.
     final from = _selectedId != null && entries.any((e) => e.id == _selectedId) ? _selectedId! : entries.first.id;
@@ -330,9 +368,9 @@ class _MindMapPageState extends State<MindMapPage> {
   }
 
   Future<void> _removeConnection() async {
-    final links = _c.profileLinks;
+    final entries = {for (final e in _visibleEntries) e.id: e.title};
+    final links = _c.profileLinks.where((link) => entries.containsKey(link.fromId) && entries.containsKey(link.toId)).toList();
     if (links.isEmpty) return;
-    final entries = {for (final e in _c.profileEntries) e.id: e.title};
     // The selected card's connections are listed first.
     final ordered = [
       ...links.where((l) => l.fromId == _selectedId || l.toId == _selectedId),
@@ -366,15 +404,16 @@ class _MindMapPageState extends State<MindMapPage> {
 
   @override
   Widget build(BuildContext context) {
-    final entries = _c.profileEntries;
-    final links = _c.profileLinks;
+    final entries = _visibleEntries;
+    final visibleIds = entries.map((entry) => entry.id).toSet();
+    final links = _c.profileLinks.where((link) => visibleIds.contains(link.fromId) && visibleIds.contains(link.toId)).toList();
     _ensurePositions(entries);
     final kids = _c.isKids;
     final themeId = _c.spaceTheme.id;
     final decor = KidsDecor.of(themeId);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final ideas = _c.profileIdeas;
+    final ideas = _weekIdeas;
     final generating = _c.generatingIdeas;
     final narrow = MediaQuery.sizeOf(context).width < 600;
     final selected = entries.where((e) => e.id == _selectedId).firstOrNull;
@@ -390,6 +429,11 @@ class _MindMapPageState extends State<MindMapPage> {
     final selectedLinks = selected == null ? 0 : connections[selected.id] ?? 0;
 
     final toolbar = Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+      if (_weekEntries.length > 8) TextButton.icon(
+        onPressed: _summarizing ? null : _summarizeWeek,
+        icon: const Icon(Icons.summarize_outlined),
+        label: Text(_summarizing ? 'Summarizing…' : 'Summarize week'),
+      ),
       if (generating) const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5)),
       FilledButton.icon(onPressed: entries.isEmpty || generating ? null : _generateIdeas,
         icon: const Icon(Icons.auto_awesome), label: Text(kids ? 'New ideas' : 'Ideas')),
@@ -421,6 +465,7 @@ class _MindMapPageState extends State<MindMapPage> {
         const SizedBox(height: 8),
         Text(kids ? 'Drag your stories around and connect them like ${decor.nouns}. Tap "New ideas" to make idea ${decor.nouns}!'
             : 'Drag cards to arrange entries. Tap a card to edit it. Use Ideas to get Gemini suggestions from related entries.'),
+        Text('This week: showing ${entries.length} of ${_weekEntries.length} entries', style: theme.textTheme.bodySmall),
         const SizedBox(height: 4),
         Text(_panOnly ? 'Overview: drag to move around. Zoom in to open or move cards.' : narrow
             ? 'Pinch to zoom • drag the background to pan • drag a card to move it'
@@ -445,7 +490,7 @@ class _MindMapPageState extends State<MindMapPage> {
         Expanded(child: Card(clipBehavior: Clip.antiAlias, color: kids ? Colors.transparent : null, child: Stack(children: [
           if (kids) Positioned.fill(child: RepaintBoundary(child: CustomPaint(painter: MapScenePainter(themeId)))),
           Positioned.fill(child: entries.isEmpty
-          ? Center(child: Text(kids ? 'Tell a story to see it here!' : 'Create some entries to see them here.'))
+          ? Center(child: Text(kids ? 'No stories this week yet.' : 'No entries this week yet.'))
           : LayoutBuilder(builder: (context, constraints) {
               _viewport = constraints.biggest;
               if (_needsFit) {

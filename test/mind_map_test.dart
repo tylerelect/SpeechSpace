@@ -152,7 +152,7 @@ void main() {
       final c = await demo('demo-alex');
       await c.addProfile('Nova', SpaceProfile.kids);
       await pumpMap(tester, c);
-      expect(find.text('Tell a story to see it here!'), findsOneWidget);
+      expect(find.text('No stories this week yet.'), findsOneWidget);
       await c.saveEntry(JournalEntry(id: '', childId: c.selectedProfileId!, date: DateTime.now(), title: 'Only one', body: 'x'));
       await tester.pumpAndSettle();
       expect(find.text('Only one'), findsOneWidget);
@@ -257,21 +257,25 @@ void main() {
       }
     });
 
-    testWidgets('20+ entries render without overlap or errors and start fitted', (tester) async {
+    testWidgets('weekly map limits cards and offers a weekly summary', (tester) async {
       final c = await demo('demo-jordan');
       for (var i = 0; i < 22; i++) {
-        await c.saveEntry(JournalEntry(id: '', childId: 'demo-jordan', date: DateTime(2026, 1, 1 + i),
-            title: 'A rather long entry title number $i that needs to wrap onto two lines', body: 'x'));
+        await c.saveEntry(JournalEntry(id: '', childId: 'demo-jordan', date: DateTime.now(),
+            title: 'This week entry $i', body: 'A full entry about today'));
       }
+      await c.saveEntry(JournalEntry(id: '', childId: 'demo-jordan',
+          date: DateTime.now().subtract(const Duration(days: 30)), title: 'Old entry', body: 'old'));
       await pumpMap(tester, c, size: const Size(900, 800));
       expect(tester.takeException(), isNull);
-      expect(find.textContaining('A rather long entry title'), findsNWidgets(22));
-      expect(scale(tester), lessThan(1), reason: 'a large map is shrunk to fit on first view');
-      final ids = c.profileEntries.map((e) => e.id).toList();
-      final rects = [for (final id in ids) cardTopLeft(tester, id) & mindMapNodeSize];
-      for (var i = 0; i < rects.length; i++) {
-        for (var j = i + 1; j < rects.length; j++) { expect(rects[i].overlaps(rects[j]), isFalse); }
-      }
+      expect(find.textContaining('This week entry'), findsNWidgets(8));
+      expect(find.text('Old entry'), findsNothing);
+      expect(c.profileEntries.length, greaterThan(22));
+      expect(find.text('Summarize week'), findsOneWidget);
+      await tester.tap(find.text('Summarize week'));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(find.text('This week'), findsOneWidget);
+      expect(find.text('Demo summary'), findsOneWidget);
     });
 
     testWidgets('layout persists per profile and Reset layout restores the default', (tester) async {
@@ -298,6 +302,10 @@ void main() {
 
     testWidgets('selection emphasis, semantics, keyboard and Esc', (tester) async {
       final c = await demo('demo-alex');
+      for (final id in ['demo-1', 'demo-2', 'demo-3']) {
+        final entry = c.entries.firstWhere((entry) => entry.id == id);
+        await c.saveEntry(entry.copyWith(date: DateTime.now()));
+      }
       await pumpMap(tester, c);
       expect(find.bySemanticsLabel(RegExp(r'^Story: The big blue kite\. 1 connection\. Activate to edit\.$')), findsOneWidget);
       expect(find.byKey(const ValueKey('mindmap-hint')), findsOneWidget);

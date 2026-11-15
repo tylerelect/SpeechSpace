@@ -113,6 +113,7 @@ class _EntryEditorState extends State<EntryEditor> {
         content: SingleChildScrollView(child: recording
           ? VoiceCapture(
               prompt: 'Record your answer',
+              requireGuardianApproval: widget.controller.isKids,
               recorderFactory: widget.voiceRecorderFactory,
               onRecordingChanged: widget.controller.sound.onRecordingChanged,
               onTranscribe: widget.controller.transcribe,
@@ -204,12 +205,53 @@ class _EntryEditorState extends State<EntryEditor> {
     }
   }
 
+  /// Short, local suggestions based only on the words already entered.
+  List<String> _titleSuggestions() {
+    final firstSentence = _body.text.trim().split(RegExp(r'[.!?\n]')).first.trim();
+    final words = firstSentence.split(RegExp(r'\s+')).where((word) => word.isNotEmpty).toList();
+    String prefix(int count) {
+      final result = words.take(count).join(' ');
+      return result.length <= 100 ? result : String.fromCharCodes(result.runes.take(100));
+    }
+    final candidates = <String>{prefix(7), prefix(4), 'Memory from ${DateFormat.yMMMd().format(_date)}'};
+    candidates.removeWhere((value) => value.trim().isEmpty);
+    return candidates.toList();
+  }
+
+  Future<String?> _chooseTitle() async {
+    final suggestions = _titleSuggestions();
+    final choice = await showDialog<String>(context: context, builder: (context) => AlertDialog(
+      title: const Text('Auto generate a title?'),
+      content: const Text('Create a title from your entry, or choose one.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(context, 'pick'), child: const Text('Pick one')),
+        FilledButton(onPressed: () => Navigator.pop(context, 'yes'), child: const Text('Yes')),
+      ],
+    ));
+    if (!mounted || choice == null) return null;
+    if (choice == 'yes') return suggestions.first;
+    return showDialog<String>(context: context, builder: (context) => SimpleDialog(
+      title: const Text('Pick a title'),
+      children: [
+        for (final title in suggestions)
+          SimpleDialogOption(onPressed: () => Navigator.pop(context, title), child: Text(title)),
+        SimpleDialogOption(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+      ],
+    ));
+  }
+
   Future<void> _save() async {
-    if (_title.text.trim().isEmpty || _body.text.trim().isEmpty) {
-      _message('A title and memory are required.'); return;
+    if (_body.text.trim().isEmpty) {
+      _message('A memory is required.'); return;
     }
     setState(() => _working = true);
     try {
+      if (_title.text.trim().isEmpty) {
+        final title = await _chooseTitle();
+        if (!mounted || title == null) return;
+        _title.text = title;
+      }
       final saved = await widget.controller.saveEntry(JournalEntry(
         id: widget.entry?.id ?? '',
         childId: widget.entry?.childId ?? widget.controller.selectedProfileId!,
