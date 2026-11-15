@@ -35,7 +35,7 @@ MONGO_URI = os.getenv('MONGODB_URI', '')
 DB_NAME = os.getenv('MONGODB_DB', 'speechspace_dev')
 DEV_TOKEN = os.getenv('APP_DEV_TOKEN', '')
 GEMINI_KEY = os.getenv('GEMINI_API_KEY', '')
-GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')
+GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-3.5-flash-lite')
 STT_URL = os.getenv('STT_ENDPOINT_URL', '')
 STT_TOKEN = os.getenv('STT_API_TOKEN', '')
 # 'elevenlabs' selects the ElevenLabs adapter; anything else uses the generic adapter.

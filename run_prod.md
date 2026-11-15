@@ -45,7 +45,7 @@ Fill in every variable. Generate **new** values rather than copying dev ones:
 | `MONGODB_DB` | `speechspace_prod` (never the dev `speechspace_dev`) |
 | `APP_DEV_TOKEN` | **New**: `openssl rand -hex 32`. Do not reuse the dev token. |
 | `GEMINI_API_KEY` | Gemini key (prod key recommended) |
-| `GEMINI_MODEL` | e.g. `gemini-2.5-flash-lite` |
+| `GEMINI_MODEL` | e.g. `gemini-3.5-flash-lite` |
 | `STT_PROVIDER` | `elevenlabs`, or leave empty and use `STT_ENDPOINT_URL` |
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_STT_MODEL` | Required if `STT_PROVIDER=elevenlabs` |
 | `STT_ENDPOINT_URL`, `STT_API_TOKEN` | Generic STT adapter instead of ElevenLabs |
