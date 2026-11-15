@@ -28,7 +28,6 @@ variables in the hosting dashboard:
 - `GEMINI_API_KEY`, `GEMINI_MODEL` for AI features
 - `STT_PROVIDER`, `ELEVENLABS_API_KEY`, `ELEVENLABS_STT_MODEL` for ElevenLabs;
   or `STT_ENDPOINT_URL`, `STT_API_TOKEN` for the generic transcription adapter
-- `CORS_ORIGINS` for the actual web frontend origins, if hosting Flutter web
 
 Use the same values as the local `.env` where appropriate. Permit the hosting
 service's outbound addresses in Atlas network access. Choose an always-on
@@ -55,7 +54,7 @@ flutter run --profile -d YOUR_DEVICE_ID \
 ```
 
 Rebuild when changing these compile-time values. Omitting `API_BASE_URL` selects
-demo mode. Native mobile apps do not need a CORS origin.
+demo mode.
 
 This remains the existing shared-token prototype: every authenticated request
 uses the same `prototype-parent` owner. Hosting does not add per-user accounts;

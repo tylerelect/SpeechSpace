@@ -220,7 +220,6 @@ Fill in every variable. Generate **new** values rather than copying dev ones:
 | `STT_PROVIDER` | `elevenlabs`, or leave empty and use `STT_ENDPOINT_URL` |
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_STT_MODEL` | Required if `STT_PROVIDER=elevenlabs` |
 | `STT_ENDPOINT_URL`, `STT_API_TOKEN` | Generic STT adapter instead of ElevenLabs |
-| `CORS_ORIGINS` | Only needed for a hosted Flutter **web** build; native apps ignore it |
 
 Atlas → **Network Access**: allow the Proxmox host's public egress IP, not `0.0.0.0/0`.
 
@@ -251,7 +250,7 @@ Quick tunnels (`*.trycloudflare.com`) change URL on every restart. Production
 uses a **named** tunnel instead:
 
 ```bash
-cloudflared tunnel login                       # opens browser, pick speechspace.health
+cloudflared tunnel login                       # authorize and select speechspace.health
 cloudflared tunnel create speechspace-prod     # writes ~/.cloudflared/<TUNNEL_ID>.json
 cloudflared tunnel route dns speechspace-prod api.speechspace.health
 ```

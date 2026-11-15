@@ -6,7 +6,7 @@ It's plain HTML and CSS in a single `index.html`, plus app screenshots in `img/`
 
 ## Preview locally
 
-Open `index.html` in a browser, or run:
+Run the local preview server:
 
 ```bash
 python3 -m http.server 8080
