@@ -208,7 +208,7 @@ class _WeekStrip extends StatelessWidget {
             margin: const EdgeInsets.all(3),
             padding: const EdgeInsets.symmetric(vertical: 10),
             decoration: BoxDecoration(
-              color: count != null ? scheme.primaryContainer : scheme.surfaceContainerLow,
+              color: count != null ? scheme.primaryContainer : scheme.primary.withValues(alpha: .07),
               borderRadius: BorderRadius.circular(12)),
             child: Column(children: [
               Text(DateFormat.E().format(day), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
@@ -257,7 +257,7 @@ class _MonthGrid extends StatelessWidget {
             onTap: () => onDay(date),
             borderRadius: BorderRadius.circular(12),
             child: Container(decoration: BoxDecoration(
-              color: isSelected ? scheme.primaryContainer : scheme.surfaceContainerLow,
+              color: isSelected ? scheme.primaryContainer : scheme.primary.withValues(alpha: .07),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: isSelected ? scheme.primary : scheme.outlineVariant)),
               child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
