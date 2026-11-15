@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show ThemeData;
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/calendar.dart';
 import '../models/models.dart';
 import '../theme/mode_copy.dart';
 import '../theme/space_themes.dart';
@@ -9,16 +11,27 @@ import 'sound_service.dart';
 import 'writing_prompts.dart';
 
 class AppController extends ChangeNotifier {
-  AppController(this.repository, {SoundService? sound}) : sound = sound ?? SoundService();
+  AppController(this.repository, {SoundService? sound, this.persistSelection = true})
+      : sound = sound ?? SoundService();
   final MemoryRepository repository;
   final SoundService sound;
+  /// Remembers the selected profile across restarts (convenience, not auth).
+  final bool persistSelection;
+  static const selectedProfileKey = 'selectedProfileId';
 
   bool loading = true;
   String? loadError;
   List<SpaceProfile> profiles = [];
   List<JournalEntry> entries = [];
   List<MemoryLink> links = [];
+  List<ProjectSpace> projects = [];
   String? selectedProfileId;
+  /// '' = all entries; otherwise only entries in this project.
+  String selectedProjectId = '';
+
+  /// Bumped whenever data or the selection changes, so screens holding fetched
+  /// data (e.g. the calendar) know to reload instead of showing stale results.
+  int revision = 0;
 
   /// False while the start screen ("Who's using SpeechSpace?") is showing.
   bool started = false;
@@ -40,9 +53,17 @@ class AppController extends ChangeNotifier {
   SpaceTheme get spaceTheme => resolveTheme(profile?.themeId, kind);
   ThemeData get theme => buildTheme(spaceTheme);
 
-  /// Only the active profile's data is ever exposed to screens.
-  List<JournalEntry> get profileEntries => entries.where((e) => e.childId == selectedProfileId).toList()
+  /// Only the active profile's data (and selected project, if any) is exposed to screens.
+  List<JournalEntry> get profileEntries => entries
+      .where((e) => e.childId == selectedProfileId && (selectedProjectId.isEmpty || e.projectId == selectedProjectId))
+      .toList()
     ..sort((a, b) => b.date.compareTo(a.date));
+  List<ProjectSpace> get profileProjects => projects.where((p) => p.profileId == selectedProfileId).toList()
+    ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  ProjectSpace? get selectedProject {
+    for (final p in profileProjects) { if (p.id == selectedProjectId) return p; }
+    return null;
+  }
   List<MemoryLink> get profileLinks => links.where((l) => l.childId == selectedProfileId).toList();
 
   /// Gemini star suggestions. Session-only, never sent to storage.
@@ -58,6 +79,7 @@ class AppController extends ChangeNotifier {
     notifyListeners();
     try {
       await refresh();
+      await _restoreSelection();
       loadError = null;
     } catch (error) {
       loadError = error.toString();
@@ -72,19 +94,78 @@ class AppController extends ChangeNotifier {
     profiles = data.children;
     entries = data.entries;
     links = data.links;
+    projects = data.projects;
     if (selectedProfileId == null || !profiles.any((p) => p.id == selectedProfileId)) {
       selectedProfileId = profiles.isEmpty ? null : profiles.first.id;
+      selectedProjectId = '';
       sound.onProfileKindChanged(isKids);
     }
+    if (selectedProjectId.isNotEmpty && !profileProjects.any((p) => p.id == selectedProjectId)) selectedProjectId = '';
+    revision++;
     notifyListeners();
+  }
+
+  /// Restores the remembered profile only if it still exists; otherwise keeps
+  /// the fallback chosen by [refresh] and shows the start screen.
+  Future<void> _restoreSelection() async {
+    if (!persistSelection) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString(selectedProfileKey);
+      if (saved != null && profiles.any((p) => p.id == saved)) {
+        selectProfile(saved);
+        started = true;
+      } else if (saved != null) {
+        await prefs.remove(selectedProfileKey);
+      }
+    } catch (_) {
+      // Storage unavailable: carry on without persistence.
+    }
+  }
+
+  Future<void> _saveSelection() async {
+    if (!persistSelection) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final id = selectedProfileId;
+      if (id == null) { await prefs.remove(selectedProfileKey); } else { await prefs.setString(selectedProfileKey, id); }
+    } catch (_) {}
   }
 
   void selectProfile(String id) {
     if (id == selectedProfileId) return;
     selectedProfileId = id;
+    selectedProjectId = ''; // projects belong to one profile
     sound.selectVoice(voice);
     sound.onProfileKindChanged(isKids);
+    revision++;
     notifyListeners();
+    _saveSelection();
+  }
+
+  void selectProject(String id) {
+    if (id.isNotEmpty && !profileProjects.any((p) => p.id == id)) return;
+    if (id == selectedProjectId) return;
+    selectedProjectId = id;
+    revision++;
+    notifyListeners();
+  }
+
+  Future<ProjectSpace> addProject(String name) async {
+    final id = selectedProfileId;
+    final trimmed = name.trim();
+    if (id == null) throw StateError('Choose a profile first.');
+    if (trimmed.isEmpty) throw StateError('A project name is required.');
+    final created = await repository.addProject(id, trimmed);
+    await refresh();
+    return created;
+  }
+
+  /// Entries in the project survive and become unassigned.
+  Future<void> deleteProject(String id) async {
+    await repository.deleteProject(id);
+    if (selectedProjectId == id) selectedProjectId = '';
+    await refresh();
   }
 
   /// Opens the app for [id] (or the current profile) from the start screen.
@@ -93,6 +174,7 @@ class AppController extends ChangeNotifier {
     if (profile == null) return;
     started = true;
     notifyListeners();
+    _saveSelection();
   }
 
   /// Back to the start screen. Stops any sound so the chooser is quiet.
@@ -128,13 +210,16 @@ class AppController extends ChangeNotifier {
     if (current == null || current.themeId == themeId) return;
     final saved = await repository.updateProfile(current.copyWith(themeId: themeId));
     profiles = [for (final p in profiles) p.id == saved.id ? saved : p];
+    revision++;
     notifyListeners();
   }
 
   Future<void> deleteCurrentProfile() async {
     if (selectedProfileId == null) return;
     await repository.deleteChild(selectedProfileId!);
+    selectedProjectId = '';
     await refresh();
+    await _saveSelection();
     if (profiles.isEmpty) { started = false; notifyListeners(); }
   }
 
@@ -205,6 +290,20 @@ class AppController extends ChangeNotifier {
 
   Future<AiInsight> analyze(String text) => repository.analyze(text, kind: kind);
   Future<String> transcribe(Uint8List wav) => repository.transcribe(wav);
+
+  /// Calendar data for the active profile (and selected project).
+  Future<CalendarData> calendar(CalendarView view, DateTime date) {
+    final id = selectedProfileId;
+    if (id == null) return Future.error(StateError('Choose a profile first.'));
+    return repository.calendar(id, view, date, projectId: selectedProjectId);
+  }
+
+  /// On-demand recap; only called when the user taps Generate summary.
+  Future<CalendarSummary> calendarSummary(CalendarView view, DateTime date) {
+    final id = selectedProfileId;
+    if (id == null) return Future.error(StateError('Choose a profile first.'));
+    return repository.calendarSummary(id, view, date, projectId: selectedProjectId);
+  }
   Future<List<WritingPrompt>> detailPrompts(String text) => repository.detailPrompts(text, kind: kind);
 
   @override

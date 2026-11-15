@@ -48,6 +48,7 @@ class _EntryEditorState extends State<EntryEditor> {
   late DateTime _date;
   bool _working = false;
   bool _isMilestone = false;
+  String _projectId = '';
   final _bodyFocus = FocusNode();
   final Set<String> _usedPrompts = {};
 
@@ -56,6 +57,8 @@ class _EntryEditorState extends State<EntryEditor> {
     super.initState();
     _date = widget.entry?.date ?? widget.initialDate;
     _isMilestone = widget.entry?.isMilestone ?? false;
+    // New entries default to the project currently being viewed.
+    _projectId = widget.entry?.projectId ?? widget.controller.selectedProjectId;
     _title = TextEditingController(text: widget.entry?.title ?? widget.suggestion?.title ?? '');
     _body = TextEditingController(text: widget.entry?.body ?? '');
     _favorite = TextEditingController(text: widget.entry?.favorite ?? '');
@@ -187,6 +190,7 @@ class _EntryEditorState extends State<EntryEditor> {
         favorite: _favorite.text.trim(),
         highlight: _highlight.text.trim(),
         isMilestone: _isMilestone,
+        projectId: _projectId,
         tags: _tags.text.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).take(8).toList(),
       ));
       widget.onSaved?.call(saved);
@@ -281,6 +285,18 @@ class _EntryEditorState extends State<EntryEditor> {
           TextField(controller: _highlight, maxLines: 2, decoration: const InputDecoration(labelText: 'Short highlight (optional)')),
           const SizedBox(height: 12),
           TextField(controller: _tags, decoration: const InputDecoration(labelText: 'Tags (comma-separated)', hintText: 'Family, Outdoors, Learning')),
+          if (widget.controller.profileProjects.isNotEmpty || _projectId.isNotEmpty) Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: DropdownButtonFormField<String>(
+              initialValue: widget.controller.profileProjects.any((p) => p.id == _projectId) ? _projectId : '',
+              decoration: const InputDecoration(labelText: 'Project (optional)', prefixIcon: Icon(Icons.folder_outlined)),
+              items: [
+                const DropdownMenuItem(value: '', child: Text('No project')),
+                for (final p in widget.controller.profileProjects) DropdownMenuItem(value: p.id, child: Text(p.name)),
+              ],
+              onChanged: (v) => setState(() => _projectId = v ?? ''),
+            ),
+          ),
           SwitchListTile.adaptive(
             title: const Text('Mark as a milestone'),
             subtitle: const Text('Guardian-selected memory; never an AI developmental assessment.'),

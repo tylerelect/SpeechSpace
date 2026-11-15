@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart' show MediaType;
 
+import '../models/calendar.dart';
 import '../models/models.dart';
 import 'writing_prompts.dart';
 
@@ -12,6 +15,9 @@ abstract class MemoryRepository {
   Future<SpaceProfile> addProfile(String name, String kind);
   Future<SpaceProfile> updateProfile(SpaceProfile profile);
   Future<void> deleteChild(String id); // deletes any profile (Kids or Adult)
+  Future<ProjectSpace> addProject(String profileId, String name);
+  /// Deletes a project; its entries survive with `projectId: ''`.
+  Future<void> deleteProject(String id);
   Future<JournalEntry> saveEntry(JournalEntry entry);
   Future<void> deleteEntry(String id);
   Future<MemoryLink> addLink(MemoryLink link);
@@ -22,6 +28,18 @@ abstract class MemoryRepository {
   /// Asks Gemini for "add more detail" prompts that fit the draft being written.
   Future<List<WritingPrompt>> detailPrompts(String text, {required String kind});
   Future<String> transcribe(Uint8List wav);
+  Future<CalendarData> calendar(String profileId, CalendarView view, DateTime date, {String projectId = ''});
+  /// Generates a recap on demand. Never saved.
+  Future<CalendarSummary> calendarSummary(String profileId, CalendarView view, DateTime date, {String projectId = ''});
+}
+
+/// A backend error with its HTTP status, so the UI can explain what went wrong.
+class ApiException implements Exception {
+  const ApiException(this.statusCode, this.message);
+  final int statusCode;
+  final String message;
+  @override
+  String toString() => message;
 }
 
 String newId() => '${DateTime.now().microsecondsSinceEpoch}-${_nextId++}';
@@ -38,6 +56,10 @@ class DemoRepository implements MemoryRepository {
   ];
   final List<JournalEntry> _entries = [];
   final List<MemoryLink> _links = [];
+  final List<ProjectSpace> _projects = [
+    const ProjectSpace(id: 'demo-project-home', profileId: 'demo-jordan', name: 'Home'),
+    const ProjectSpace(id: 'demo-project-fitness', profileId: 'demo-jordan', name: 'Fitness'),
+  ];
 
   DemoRepository() {
     final today = DateTime.now();
@@ -65,7 +87,54 @@ class DemoRepository implements MemoryRepository {
   }
 
   @override
-  Future<AppSnapshot> load() async => AppSnapshot(children: List.of(_children), entries: List.of(_entries), links: List.of(_links));
+  Future<AppSnapshot> load() async => AppSnapshot(children: List.of(_children), entries: List.of(_entries),
+      links: List.of(_links), projects: List.of(_projects));
+
+  @override
+  Future<ProjectSpace> addProject(String profileId, String name) async {
+    if (!_children.any((c) => c.id == profileId)) throw StateError('Profile not found.');
+    final project = ProjectSpace(id: newId(), profileId: profileId, name: name.trim());
+    _projects.add(project);
+    return project;
+  }
+
+  @override
+  Future<void> deleteProject(String id) async {
+    _projects.removeWhere((p) => p.id == id);
+    for (var i = 0; i < _entries.length; i++) {
+      if (_entries[i].projectId == id) _entries[i] = _entries[i].copyWith(projectId: '');
+    }
+  }
+
+  @override
+  Future<CalendarData> calendar(String profileId, CalendarView view, DateTime date, {String projectId = ''}) async =>
+      CalendarData.compute(profileId: profileId, view: view, date: date, projectId: projectId, allEntries: _entries);
+
+  /// Offline recap built only from recorded fields, marked as a demo sample.
+  @override
+  Future<CalendarSummary> calendarSummary(String profileId, CalendarView view, DateTime date, {String projectId = ''}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    final data = CalendarData.compute(profileId: profileId, view: view, date: date, projectId: projectId, allEntries: _entries);
+    if (data.entryCount == 0) {
+      return CalendarSummary(period: data.period, entryCount: 0, activeDays: 0, milestoneCount: 0, generated: false,
+          partial: false, analyzedEntries: 0, summary: 'No entries recorded for this ${view.wire}.',
+          highlights: const [], themes: const [], milestones: const [], demo: true);
+    }
+    final analyzed = data.entries.take(maxSummaryEntries).toList();
+    final tagCounts = <String, int>{};
+    for (final e in analyzed) { for (final t in e.tags) { tagCounts[t] = (tagCounts[t] ?? 0) + 1; } }
+    final themes = (tagCounts.keys.toList()..sort((a, b) => tagCounts[b]!.compareTo(tagCounts[a]!))).take(4).toList();
+    return CalendarSummary(
+      period: data.period, entryCount: data.entryCount, activeDays: data.activeDays, milestoneCount: data.milestoneCount,
+      generated: true, partial: analyzed.length < data.entryCount, analyzedEntries: analyzed.length,
+      summary: '${data.entryCount} ${data.entryCount == 1 ? 'entry' : 'entries'} recorded across '
+          '${data.activeDays} ${data.activeDays == 1 ? 'day' : 'days'}.',
+      highlights: analyzed.take(3).map((e) => e.highlight.isNotEmpty ? e.highlight : e.title).toList(),
+      themes: themes,
+      milestones: analyzed.where((e) => e.isMilestone).map((e) => e.title).toList(),
+      demo: true,
+    );
+  }
 
   @override
   Future<SpaceProfile> addProfile(String name, String kind) async {
@@ -87,6 +156,7 @@ class DemoRepository implements MemoryRepository {
     _children.removeWhere((c) => c.id == id);
     _entries.removeWhere((e) => e.childId == id);
     _links.removeWhere((l) => l.childId == id);
+    _projects.removeWhere((p) => p.profileId == id);
   }
 
   @override
@@ -175,12 +245,31 @@ class RemoteRepository implements MemoryRepository {
       case 'DELETE': response = await http.delete(uri, headers: _headers).timeout(const Duration(seconds: 15)); break;
       default: throw ArgumentError('Unsupported method');
     }
-    final decoded = response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body) as Map<String, dynamic>;
-    if (response.statusCode == 404 && decoded['detail'] == 'Not Found' && (path == '/api/expand' || path == '/api/prompts')) {
-      throw StateError('This feature needs the new $path backend endpoint, which is not deployed yet.');
+    final decoded = _decode(response.body);
+    final route = path.split('?').first;
+    if (response.statusCode == 404 && decoded['detail'] == 'Not Found') {
+      throw ApiException(404, 'This feature needs the $route backend endpoint, which is not deployed yet.');
     }
-    if (response.statusCode >= 400) throw StateError(decoded['detail']?.toString() ?? 'Server error ${response.statusCode}');
+    if (response.statusCode >= 400) throw ApiException(response.statusCode, _detail(decoded, response.statusCode));
     return decoded;
+  }
+
+  static Map<String, dynamic> _decode(String body) {
+    if (body.isEmpty) return {};
+    try {
+      final value = jsonDecode(body);
+      return value is Map<String, dynamic> ? value : {};
+    } on FormatException {
+      return {};
+    }
+  }
+
+  /// FastAPI uses a string `detail`, or a list of problems for 422 validation errors.
+  static String _detail(Map<String, dynamic> decoded, int status) {
+    final detail = decoded['detail'];
+    if (detail is String && detail.isNotEmpty) return detail;
+    if (detail is List && detail.isNotEmpty) return 'Invalid request: ${detail.first is Map ? (detail.first as Map)['msg'] : detail.first}';
+    return 'Server error $status';
   }
 
   @override
@@ -264,11 +353,47 @@ class RemoteRepository implements MemoryRepository {
   Future<String> transcribe(Uint8List wav) async {
     final request = http.MultipartRequest('POST', _uri('/api/transcribe'))
       ..headers['Authorization'] = 'Bearer $devToken'
-      ..files.add(http.MultipartFile.fromBytes('file', wav, filename: 'daily-memory.wav'));
-    final streamed = await request.send().timeout(const Duration(seconds: 90));
-    final response = await http.Response.fromStream(streamed);
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    if (response.statusCode >= 400) throw StateError(data['detail']?.toString() ?? 'Transcription failed');
-    return (data['transcript'] as String?) ?? '';
+      ..files.add(http.MultipartFile.fromBytes('file', wav, filename: 'daily-memory.wav', contentType: MediaType('audio', 'wav')));
+    final http.Response response;
+    try {
+      final streamed = await request.send().timeout(const Duration(seconds: 95));
+      response = await http.Response.fromStream(streamed);
+    } on TimeoutException {
+      throw const ApiException(504, 'Transcription timed out. Your notes are safe; try a shorter recording.');
+    }
+    final data = _decode(response.body);
+    if (response.statusCode >= 400) throw ApiException(response.statusCode, transcribeErrorMessage(response.statusCode, _detail(data, response.statusCode)));
+    final transcript = (data['transcript'] as String?)?.trim() ?? '';
+    if (transcript.isEmpty) throw const ApiException(502, 'No speech was recognized. Try again, closer to the microphone.');
+    return transcript;
   }
+
+  @override
+  Future<ProjectSpace> addProject(String profileId, String name) async =>
+      ProjectSpace.fromJson(await _request('POST', '/api/projects', {'profileId': profileId, 'name': name.trim()}));
+
+  @override
+  Future<void> deleteProject(String id) async { await _request('DELETE', '/api/projects/${Uri.encodeComponent(id)}'); }
+
+  @override
+  Future<CalendarData> calendar(String profileId, CalendarView view, DateTime date, {String projectId = ''}) async {
+    final query = Uri(queryParameters: {'profileId': profileId, 'view': view.wire, 'date': isoDay(date), 'projectId': projectId}).query;
+    return CalendarData.fromJson(await _request('GET', '/api/calendar?$query'));
+  }
+
+  @override
+  Future<CalendarSummary> calendarSummary(String profileId, CalendarView view, DateTime date, {String projectId = ''}) async =>
+      CalendarSummary.fromJson(await _request('POST', '/api/calendar/summary',
+          {'profileId': profileId, 'view': view.wire, 'date': isoDay(date), 'projectId': projectId}));
 }
+
+/// Friendly messages for `/api/transcribe` failures. Notes are never lost.
+String transcribeErrorMessage(int status, String detail) => switch (status) {
+      401 => 'The app is not authorized with the backend (check DEV_API_TOKEN).',
+      413 => 'That recording is too long to upload. Try a shorter one.',
+      415 || 422 => 'The recording could not be read. Please record again.',
+      503 => 'Speech-to-text is not set up on the backend yet. You can type instead.',
+      504 => 'Transcription timed out. Try a shorter recording.',
+      502 => 'The speech service had a problem. Try again in a moment.',
+      _ => detail,
+    };

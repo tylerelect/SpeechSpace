@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/app_controller.dart';
 import '../widgets/entry_editor.dart';
+import '../widgets/project_filter.dart';
 import 'today_page.dart';
 
 class TimelinePage extends StatefulWidget {
@@ -33,6 +34,7 @@ class _TimelinePageState extends State<TimelinePage> {
         ]),
         const SizedBox(height: 6),
         Text(copy.isKids ? 'All your stories in one place.' : 'Search, filter, and review past entries.'),
+        if (!copy.isKids) Padding(padding: const EdgeInsets.only(top: 12), child: ProjectFilter(controller: widget.controller)),
         const SizedBox(height: 14),
         TextField(onChanged: (v) => setState(() => _query = v),
             decoration: InputDecoration(prefixIcon: const Icon(Icons.search), hintText: 'Search ${copy.entryNounPlural.toLowerCase()} and tags…')),

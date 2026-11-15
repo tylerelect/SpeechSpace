@@ -42,6 +42,8 @@ class JournalEntry {
   final String highlight;
   final bool isMilestone;
   final List<String> tags;
+  /// Optional project; '' means unassigned.
+  final String projectId;
 
   const JournalEntry({
     required this.id,
@@ -53,9 +55,10 @@ class JournalEntry {
     this.highlight = '',
     this.isMilestone = false,
     this.tags = const [],
+    this.projectId = '',
   });
 
-  JournalEntry copyWith({String? id, String? title, String? body, String? favorite, String? highlight, bool? isMilestone, List<String>? tags, DateTime? date}) =>
+  JournalEntry copyWith({String? id, String? title, String? body, String? favorite, String? highlight, bool? isMilestone, List<String>? tags, DateTime? date, String? projectId}) =>
       JournalEntry(
         id: id ?? this.id,
         childId: childId,
@@ -66,18 +69,20 @@ class JournalEntry {
         highlight: highlight ?? this.highlight,
         isMilestone: isMilestone ?? this.isMilestone,
         tags: tags ?? this.tags,
+        projectId: projectId ?? this.projectId,
       );
 
   factory JournalEntry.fromJson(Map<String, dynamic> json) => JournalEntry(
         id: json['id'] as String,
         childId: json['childId'] as String,
-        date: DateTime.parse(json['date'] as String).toLocal(),
+        date: parseCalendarDay(json['date'] as String),
         title: (json['title'] as String?) ?? '',
         body: (json['body'] as String?) ?? '',
         favorite: (json['favorite'] as String?) ?? '',
         highlight: (json['highlight'] as String?) ?? '',
         isMilestone: (json['isMilestone'] as bool?) ?? false,
         tags: ((json['tags'] as List?) ?? []).map((e) => e.toString()).toList(),
+        projectId: (json['projectId'] as String?) ?? '',
       );
 
   Map<String, dynamic> toJson() => {
@@ -90,7 +95,36 @@ class JournalEntry {
         'highlight': highlight,
         'isMilestone': isMilestone,
         'tags': tags,
+        'projectId': projectId,
       };
+}
+
+/// The recorded calendar day is the first 10 characters (YYYY-MM-DD) of the
+/// stored ISO date. Never shift it through UTC/local conversion.
+DateTime parseCalendarDay(String iso) {
+  final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(iso);
+  if (m == null) return DateTime.parse(iso);
+  return DateTime(int.parse(m[1]!), int.parse(m[2]!), int.parse(m[3]!));
+}
+
+String isoDay(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+/// A named group of entries within one profile (mainly used in Adult mode).
+class ProjectSpace {
+  final String id;
+  final String profileId;
+  final String name;
+
+  const ProjectSpace({required this.id, required this.profileId, required this.name});
+
+  factory ProjectSpace.fromJson(Map<String, dynamic> json) => ProjectSpace(
+        id: json['id'] as String,
+        profileId: json['profileId'] as String,
+        name: (json['name'] as String?) ?? '',
+      );
+
+  Map<String, dynamic> toJson() => {'id': id, 'profileId': profileId, 'name': name};
 }
 
 class MemoryLink {
@@ -131,13 +165,16 @@ class AppSnapshot {
   final List<SpaceProfile> children;
   final List<JournalEntry> entries;
   final List<MemoryLink> links;
+  final List<ProjectSpace> projects;
 
-  const AppSnapshot({required this.children, required this.entries, required this.links});
+  const AppSnapshot({required this.children, required this.entries, required this.links, this.projects = const []});
 
   factory AppSnapshot.fromJson(Map<String, dynamic> json) => AppSnapshot(
         children: ((json['children'] as List?) ?? []).map((e) => SpaceProfile.fromJson(Map<String, dynamic>.from(e as Map))).toList(),
         entries: ((json['entries'] as List?) ?? []).map((e) => JournalEntry.fromJson(Map<String, dynamic>.from(e as Map))).toList(),
         links: ((json['links'] as List?) ?? []).map((e) => MemoryLink.fromJson(Map<String, dynamic>.from(e as Map))).toList(),
+        // Older snapshots have no `projects` key.
+        projects: ((json['projects'] as List?) ?? []).map((e) => ProjectSpace.fromJson(Map<String, dynamic>.from(e as Map))).toList(),
       );
 }
 

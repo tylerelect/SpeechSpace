@@ -65,6 +65,7 @@ class SettingsPage extends StatelessWidget {
           const SizedBox(height: 12),
           Wrap(spacing: 10, runSpacing: 10, children: [
             for (final t in themesFor(profile.kind)) ChoiceChip(
+              key: ValueKey('theme-${t.id}'),
               avatar: CircleAvatar(backgroundColor: t.seed, child: Icon(t.icon, size: 14, color: Colors.white)),
               label: Text(t.label),
               selected: controller.spaceTheme.id == t.id,
@@ -76,6 +77,10 @@ class SettingsPage extends StatelessWidget {
       if (controller.isKids) ...[
         const SizedBox(height: 12),
         _KidsSoundCard(controller: controller),
+      ],
+      if (profile != null && !controller.isKids) ...[
+        const SizedBox(height: 12),
+        _ProjectsCard(controller: controller),
       ],
       const SizedBox(height: 12),
       Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -155,5 +160,70 @@ class _KidsSoundCard extends StatelessWidget {
             child: Text(sound.error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
       ]),
     )));
+  }
+}
+
+/// Create / select / delete projects for the current (Adult) profile.
+class _ProjectsCard extends StatelessWidget {
+  const _ProjectsCard({required this.controller});
+  final AppController controller;
+
+  void _snack(BuildContext context, Object e) {
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e'.replaceFirst('Bad state: ', ''))));
+  }
+
+  Future<void> _add(BuildContext context) async {
+    final name = TextEditingController();
+    final result = await showDialog<String>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('New project'),
+      content: TextField(controller: name, autofocus: true, maxLength: 60,
+          decoration: const InputDecoration(labelText: 'Project name'),
+          onSubmitted: (v) => Navigator.pop(ctx, v)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.pop(ctx, name.text), child: const Text('Create')),
+      ],
+    ));
+    name.dispose();
+    if (result == null || result.trim().isEmpty || !context.mounted) return;
+    try { await controller.addProject(result); } catch (e) { if (context.mounted) _snack(context, e); }
+  }
+
+  Future<void> _delete(BuildContext context, String id, String name) async {
+    final count = controller.entries.where((e) => e.projectId == id).length;
+    final yes = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: Text('Delete "$name"?'),
+      content: Text(count == 0 ? 'This project has no entries.'
+          : 'Its $count ${count == 1 ? 'entry stays' : 'entries stay'} in your journal, without a project.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete project')),
+      ],
+    ));
+    if (yes != true || !context.mounted) return;
+    try { await controller.deleteProject(id); } catch (e) { if (context.mounted) _snack(context, e); }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final projects = controller.profileProjects;
+    return Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Projects', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 4),
+      const Text('Group entries by project. Selecting one filters the calendar and entries.'),
+      const SizedBox(height: 8),
+      if (projects.isEmpty) const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('No projects yet.')),
+      for (final p in projects) ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(controller.selectedProjectId == p.id ? Icons.folder : Icons.folder_outlined),
+        title: Text(p.name),
+        subtitle: Text('${controller.entries.where((e) => e.projectId == p.id).length} entries'),
+        selected: controller.selectedProjectId == p.id,
+        onTap: () => controller.selectProject(controller.selectedProjectId == p.id ? '' : p.id),
+        trailing: IconButton(tooltip: 'Delete project', icon: const Icon(Icons.delete_outline),
+            onPressed: () => _delete(context, p.id, p.name)),
+      ),
+      OutlinedButton.icon(onPressed: () => _add(context), icon: const Icon(Icons.create_new_folder_outlined), label: const Text('New project')),
+    ])));
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speechspace/main.dart';
 import 'package:speechspace/models/models.dart';
 import 'package:speechspace/screens/mind_map_page.dart';
@@ -15,6 +16,8 @@ Future<AppController> demoController() async {
 }
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   testWidgets('launch shows the profile chooser; picking Alex opens Kids mode', (tester) async {
     final controller = await demoController();
     await tester.pumpWidget(SpeechSpaceApp(controller: controller));
