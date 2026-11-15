@@ -151,9 +151,21 @@ ANDROID_DEVICE_SERIAL='YOUR_SERIAL_FROM_FIRST_COLUMN'
 ```
 
 If the app shows `Unauthorized demo token` (HTTP 401), the token baked into the
-build does not match the server's `APP_DEV_TOKEN`. Put the server's token in
-`config/prod.local.json` (see the production token section below), rebuild with
-`--dart-define-from-file=config/prod.local.json`, and reinstall.
+build does not match the server's `APP_DEV_TOKEN`. Fix it:
+
+1. On the server: `grep '^APP_DEV_TOKEN=' /opt/speechspace/.env`
+2. Paste that value into `APP_DEV_TOKEN=` in your Mac's `.env`.
+3. Re-run the `configure_ios_debug.py --sync-android` command above, then the
+   `flutter build apk` and install commands. Reinstalling without rebuilding
+   keeps the old token.
+
+Check the token before rebuilding (expect `200`):
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" \
+  -H "Authorization: Bearer $(python3 -c "import json;print(json.load(open('config/dev.local.json'))['DEV_API_TOKEN'])")" \
+  https://api.speechspace.health/api/snapshot
+```
 
 If your SDK lives elsewhere, adjust `ANDROID_ADB`. Wait for installation to report
 `Success` before launching. If Android reports a signing-key mismatch, use the
