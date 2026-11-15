@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SpeechSpace: tell your story out loud</title>
+<meta name="description" content="SpeechSpace turns the best part of your day into a story you tell out loud, then keeps it on a calendar, in a story list, and on a star map you can connect.">
+<meta name="theme-color" content="#0E1033">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Nunito+Sans:opsz,wght@6..12,400;6..12,700;6..12,800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --space: #0E1033;      /* app background */
+    --orbit: #1A1D4A;      /* app surface cards */
+    --nebula: #463F77;     /* app mission card */
+    --lavender: #C8BFFF;   /* app primary button */
+    --indigo: #5046E5;     /* adult profile accent */
+    --star: #FFFFFF;
+    --mist: #B4AFD9;       /* secondary text */
+    --line: #2E2F66;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation: none !important; transition: none !important; } }
+  body {
+    margin: 0;
+    font-family: "Nunito Sans", system-ui, sans-serif;
+    font-size: 1.0625rem; line-height: 1.6;
+    color: var(--star); background: var(--space);
+  }
+  a { color: inherit; }
+  img { display: block; max-width: 100%; height: auto; }
+  :focus-visible { outline: 3px solid var(--lavender); outline-offset: 3px; border-radius: 8px; }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+  h1, h2, h3 { font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700; letter-spacing: -0.02em; }
+
+  /* starfield: three layers of tiny dots */
+  .stars {
+    background-image:
+      radial-gradient(1.5px 1.5px at 20px 30px, #fff9, transparent),
+      radial-gradient(1px 1px at 120px 80px, #fff7, transparent),
+      radial-gradient(1.5px 1.5px at 200px 160px, #c8bfffaa, transparent),
+      radial-gradient(1px 1px at 60px 190px, #fff5, transparent),
+      radial-gradient(1px 1px at 260px 40px, #fff6, transparent);
+    background-size: 300px 220px;
+  }
+
+  /* ---------- Hero ---------- */
+  .hero { position: relative; overflow: hidden; padding-bottom: 0; }
+  nav { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: "Space Grotesk", sans-serif; font-weight: 700; font-size: 1.35rem; text-decoration: none; }
+  .brand svg { color: var(--lavender); }
+  nav .links { display: flex; gap: 28px; font-weight: 700; color: var(--mist); }
+  nav .links a { text-decoration: none; }
+  nav .links a:hover { color: var(--star); }
+
+  .hero-grid { display: grid; grid-template-columns: 1fr 1.1fr; gap: 56px; align-items: center; padding: 48px 0 0; }
+  .hero h1 { font-size: clamp(2.8rem, 6vw, 4.8rem); line-height: 1; margin: 0 0 22px; }
+  .hero .lede { font-size: 1.22rem; color: var(--mist); max-width: 26em; margin: 0 0 32px; }
+  .cta-row { display: flex; gap: 14px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 16px 28px; border-radius: 999px;
+    font-weight: 800; font-size: 1.05rem; text-decoration: none;
+    transition: transform .15s ease;
+  }
+  .btn:hover { transform: translateY(-2px); }
+  .btn-primary { background: var(--lavender); color: #231C5C; }
+  .btn-ghost { border: 2px solid var(--line); color: var(--star); }
+  .btn-ghost:hover { border-color: var(--lavender); }
+
+  .phones { position: relative; height: 640px; }
+  .phone {
+    position: absolute; width: 270px;
+    border-radius: 36px; overflow: hidden;
+    border: 6px solid #2A2C5E;
+    background: var(--space);
+    box-shadow: 0 30px 60px -20px #00000099;
+  }
+  .phone img { width: 100%; }
+  .phone.front { left: 50%; top: 20px; transform: translateX(-50%); z-index: 3; width: 290px; border-color: #3A3480;
+                 animation: liftoff 1.1s cubic-bezier(.2,.8,.2,1) both; }
+  .phone.left  { left: 30px; top: 110px; transform: rotate(-7deg); z-index: 1; opacity: .9; }
+  .phone.right { right: 10px; top: 110px; transform: rotate(7deg); z-index: 2; opacity: .9; }
+  @keyframes liftoff { from { transform: translate(-50%, 80px); opacity: 0; } }
+
+  /* ---------- Sections ---------- */
+  section { padding: 112px 0; }
+  .section-head { max-width: 640px; margin-bottom: 56px; }
+  h2 { font-size: clamp(2rem, 4vw, 3rem); line-height: 1.05; margin: 0 0 14px; }
+  .section-head p { color: var(--mist); font-size: 1.15rem; margin: 0; }
+
+  .how { background: var(--orbit); border-top: 1px solid var(--line); position: relative; z-index: 4; }
+  .steps { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; position: relative; counter-reset: step; }
+  .steps::before { /* dashed constellation line joining the stars, like the star map */
+    content: ""; position: absolute; top: 27px; left: 28px; right: 33%;
+    border-top: 2px dashed #7C72C8; opacity: .6;
+  }
+  .steps li { position: relative; counter-increment: step; }
+  .steps li::before {
+    content: counter(step);
+    display: grid; place-items: center; width: 56px; height: 56px; border-radius: 18px;
+    background: var(--nebula); color: var(--star); border: 2px solid var(--lavender);
+    font-family: "Space Grotesk", sans-serif; font-weight: 700; font-size: 1.4rem;
+    margin-bottom: 20px; position: relative;
+  }
+  .steps h3 { font-size: 1.3rem; margin: 0 0 8px; }
+  .steps p { color: var(--mist); margin: 0; max-width: 30ch; }
+
+  .feature { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: center; }
+  .feature + .feature { margin-top: 120px; }
+  .feature.flip .shot { order: 2; }
+  .feature h3 { font-size: clamp(1.7rem, 3vw, 2.3rem); line-height: 1.1; margin: 0 0 16px; }
+  .feature p { color: var(--mist); margin: 0 0 14px; max-width: 34em; }
+  .feature ul { margin: 18px 0 0; padding: 0; list-style: none; }
+  .feature li { padding-left: 28px; position: relative; margin-bottom: 10px; }
+  .feature li::before { content: "✦"; position: absolute; left: 0; color: var(--lavender); }
+  .shot { display: flex; justify-content: center; }
+  .shot .phone { position: static; transform: none; width: 300px; height: 560px; opacity: 1; }
+  .shot .phone img { height: 100%; object-fit: cover; object-position: top; }
+  .shot .phone.bottom img { object-position: bottom; }
+  .shot .card { border-radius: 28px; overflow: hidden; border: 1px solid var(--line); max-width: 480px; box-shadow: 0 30px 60px -24px #000c; }
+
+  .privacy { background: var(--nebula); border-radius: 36px; padding: 64px; display: grid; grid-template-columns: 1fr 1.4fr; gap: 56px; }
+  .privacy h2 { margin: 0; }
+  .privacy p { margin: 0 0 16px; color: #E3DEFF; max-width: 58ch; }
+  .privacy p strong { color: var(--star); }
+  .privacy .note { color: var(--mist); font-size: .92rem; margin-top: 24px; }
+
+  .closing { text-align: center; padding: 120px 0; }
+  .closing svg { color: var(--lavender); margin: 0 auto 24px; display: block; }
+  .closing h2 { max-width: 14em; margin: 0 auto 30px; }
+  .closing .cta-row { justify-content: center; }
+  footer { border-top: 1px solid var(--line); padding: 28px 0; color: var(--mist); font-size: .9rem; }
+  footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 1000px) {
+    .hero-grid { grid-template-columns: 1fr; text-align: center; }
+    .hero .lede { margin-left: auto; margin-right: auto; }
+    .hero .cta-row { justify-content: center; }
+    .phones { max-width: 640px; width: 100%; margin: 0 auto; height: 600px; }
+    .feature { grid-template-columns: 1fr; gap: 40px; }
+    .feature.flip .shot { order: 0; }
+    .privacy { grid-template-columns: 1fr; gap: 20px; padding: 44px 32px; }
+  }
+  @media (max-width: 680px) {
+    nav .links a:not(:last-child) { display: none; }
+    .phone.left, .phone.right { display: none; }
+    .phones { height: 590px; }
+    .phone.front { width: 260px; }
+    .steps { grid-template-columns: 1fr; }
+    .steps::before { display: none; }
+    section { padding: 80px 0; }
+    .feature + .feature { margin-top: 88px; }
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="rocket" viewBox="0 0 24 24"><path fill="currentColor" d="M9.19 6.35c-2.04 2.29-3.44 5.58-3.57 5.89L2 10.69l4.05-4.05c.47-.47 1.15-.68 1.81-.55zM11.17 17s3.74-1.55 5.89-3.7c5.4-5.4 4.5-9.62 4.21-10.57-.95-.3-5.17-1.19-10.57 4.21C8.55 9.09 7 12.83 7 12.83zm6.48-2.19c-2.29 2.04-5.58 3.44-5.89 3.57L13.31 22l4.05-4.05c.47-.47.68-1.15.55-1.81zM9 18c0 .83-.34 1.58-.88 2.12C6.94 21.3 2 22 2 22s.7-4.94 1.88-6.12A2.996 2.996 0 0 1 9 18m4-9c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2"/></symbol>
+</svg>
+
+<header class="hero stars">
+  <div class="wrap">
+    <nav aria-label="Main">
+      <a class="brand" href="#top"><svg width="28" height="28" aria-hidden="true"><use href="#rocket"/></svg>SpeechSpace</a>
+      <div class="links">
+        <a href="#how">How it works</a>
+        <a href="#features">Features</a>
+        <a href="#privacy">Privacy</a>
+        <a href="https://github.com/tylerelect/SpeechSpace">GitHub</a>
+      </div>
+    </nav>
+
+    <div class="hero-grid" id="top">
+      <div>
+        <h1>Ready for liftoff.</h1>
+        <p class="lede">SpeechSpace asks one question each day: what was the best part? Tell your story out loud, and it lands on your calendar, in your story list, and on a star map you can connect.</p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://github.com/tylerelect/SpeechSpace#1-run-immediately-demo-data-no-api-keys">Try the demo</a>
+          <a class="btn btn-ghost" href="#how">See how it works</a>
+        </div>
+      </div>
+      <div class="phones">
+        <div class="phone left"><img src="img/adult-today.webp" alt="Adult Today screen with entry counts and a New entry button" width="720" height="1480"></div>
+        <div class="phone right"><img src="img/starmap.webp" alt="Star map with stories and idea stars connected by lines" width="720" height="1480"></div>
+        <div class="phone front"><img src="img/today.webp" alt="Today screen: Today's mission, what was the best part of your day, with a Tell my story button" width="720" height="1480"></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section id="how" class="how">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>One mission a day</h2>
+        <p>No typing needed. One question, one big button, and a story worth keeping.</p>
+      </div>
+      <ol class="steps">
+        <li><h3>Tell your story</h3><p>Press "Tell my story" and say what the best part of your day was, for up to 90 seconds.</p></li>
+        <li><h3>Get story helpers</h3><p>Your words become text. Gemini Flash can suggest a short highlight, your favorite thing, and a few tags.</p></li>
+        <li><h3>Save it to your sky</h3><p>Check the suggestions, change anything you like, and save. Your story shows up on that day.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="features" class="stars">
+    <div class="wrap">
+      <div class="feature">
+        <div class="shot"><div class="phone"><img src="img/starmap.webp" alt="Star map with the stories First friend and I went stargazing, plus idea stars like Look at the stars" width="720" height="1480" loading="lazy"></div></div>
+        <div>
+          <h3>Connect your stories like stars</h3>
+          <p>The star map lays out every story as a card you can drag, zoom, and link, so "First friend" and "I went stargazing" can sit side by side in the same constellation.</p>
+          <p>Tap "New ideas" for suggested idea stars, like looking at the stars tonight or writing more about a story. Keep the ones you like and dismiss the rest.</p>
+        </div>
+      </div>
+
+      <div class="feature flip">
+        <div class="shot"><div class="phone"><img src="img/mydays.webp" alt="My days: November calendar with counts for stories, active days, and milestones, and a star on the day with a story" width="720" height="1480" loading="lazy"></div></div>
+        <div>
+          <h3>See your month at a glance</h3>
+          <p>My days puts a star on every day with a story and counts up your stories, active days, and the milestones a parent has marked.</p>
+          <ul>
+            <li>Switch between day, week, month, and year</li>
+            <li>Tap any date to read what happened</li>
+            <li>Add a story for a day you missed</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="shot"><div class="phone"><img src="img/editor.webp" alt="New story form with a Record button and a Guardian has approved this recording checkbox" width="720" height="1480" loading="lazy"></div></div>
+        <div>
+          <h3>Grown-ups approve every recording</h3>
+          <p>A guardian checks "approved" before a recording is sent. Kids can also type what happened, name their story, and add their favorite thing.</p>
+        </div>
+      </div>
+
+      <div class="feature flip">
+        <div class="shot"><div class="phone"><img src="img/adult-today.webp" alt="Adult Today screen with counts for entries, days recorded, connections, and milestones, and a New entry button" width="720" height="1480" loading="lazy"></div></div>
+        <div>
+          <h3>A calmer journal for grown-ups</h3>
+          <p>Adult profiles swap the rockets for a clean, light journal. Each day asks what stood out. Dictate or type a note, then tag it and link it to other entries later.</p>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="shot"><div class="phone"><img src="img/activity.webp" alt="Activity screen with a year of days shown as squares, darker for more entries" width="720" height="1480" loading="lazy"></div></div>
+        <div>
+          <h3>A whole year in one view</h3>
+          <p>Activity shows every day of the last 365 as a square. The more entries you saved that day, the darker it gets. Tap a square to jump to that day.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="privacy">
+    <div class="wrap">
+      <div class="privacy">
+        <h2>Parents stay in charge</h2>
+        <div>
+          <p><strong>Audio isn't kept.</strong> Recordings are sent for transcription and then thrown away. They're never stored in our database.</p>
+          <p><strong>You approve what's saved.</strong> AI story helpers stick to plain facts: a highlight, a favorite thing your child named, and a few tags. Nothing is saved until you review it.</p>
+          <p><strong>It's a journal, not a test.</strong> SpeechSpace doesn't score, diagnose, or judge anyone's development.</p>
+          <p class="note">SpeechSpace is an early prototype built at Hack The Nest. Please try it with demo profiles until parent accounts and consent controls are in place.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="closing stars">
+    <div class="wrap">
+      <svg width="56" height="56" aria-hidden="true"><use href="#rocket"/></svg>
+      <h2>What was the best part of your day?</h2>
+      <div class="cta-row"><a class="btn btn-primary" href="https://github.com/tylerelect/SpeechSpace">Get SpeechSpace on GitHub</a></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 SpeechSpace</span>
+    <span>Runs on web, Android, and iOS</span>
+  </div>
+</footer>
+</body>
+</html>
