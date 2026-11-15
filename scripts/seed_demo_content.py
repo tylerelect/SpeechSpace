@@ -1,20 +1,18 @@
-"""Content for scripts/seed_demo_data.py.
+"""Shared template helpers and the Adult profile for scripts/seed_demo_data.py.
 
-KIDS_* is written in a child's voice, inspired by "describe your perfect day"
-interview transcripts (pools, puppies, ice cream, tag that keeps growing, a
-kitten named Laser, little brother Lucas, a science lab on the moon, sleepovers,
-carpool). ADULT_* is day-in-the-life material: commuting, work, groceries,
-errands, health, family.
+The four kids profiles live in seed_demo_kids.py. The adult (Jordan) is
+day-in-the-life material: commuting, work, groceries, errands, health, family.
 
-Templates use {slot} placeholders filled from the matching *_SLOTS table.
+Activity: dict(category, months (None = any), days ('weekday'|'weekend'|'any'),
+weight, tags, extras, variants). Each variant V(...) is one coherent story
+(title, opener, details, favorites). {slot} placeholders come from the
+profile's slots table. Events: (month, day, category, title, body, favorite,
+milestone, tags[, only_year]).
 """
 
 # ---------------------------------------------------------------------------
-# Categories (stored as `projects`, one set per profile)
+# Adult profile categories (stored as `projects`)
 # ---------------------------------------------------------------------------
-
-KID_CATEGORIES = ['School', 'Family', 'Friends', 'Pets', 'Outdoors & Sports',
-                  'Food & Treats', 'Science & Imagination', 'Holidays & Trips']
 
 ADULT_CATEGORIES = ['Work', 'Home & Errands', 'Groceries & Cooking', 'Health',
                     'Family & Friends', 'Money', 'Travel & Fun']
@@ -23,108 +21,6 @@ ADULT_CATEGORIES = ['Work', 'Home & Errands', 'Groceries & Cooking', 'Health',
 # Hand-written recent entries (Oct-Nov 2026)
 # (key, date, category, title, body, favorite, highlight, milestone, tags)
 # ---------------------------------------------------------------------------
-
-KID_ENTRIES = [
-    ('pancakes', '2026-10-03', 'Food & Treats', 'Chocolate pancakes',
-     'Today I woke up and it was sunny. Dad made chocolate pancakes for breakfast and I ate three. '
-     'My sister did not throw a fit at all. I did not have to do any chores so I played frisbee in the backyard.',
-     'Chocolate pancakes', 'A sunny Saturday with chocolate pancakes and frisbee.', False,
-     ['breakfast', 'family', 'outside']),
-    ('pump-track', '2026-10-04', 'Outdoors & Sports', 'Pump track with my bike',
-     'We went to the pump track. It is kind of like a skate park made of dirt for bikes. '
-     'I went over the big bumps without pedaling. I fell one time but I got back up.',
-     'Going over the big bumps', 'Rode bikes at the dirt pump track and kept going after a fall.', False,
-     ['bikes', 'outside', 'brave']),
-    ('laser', '2026-10-07', 'Pets', 'Laser knocked over my cup',
-     'Laser is my kitten. She knocked my water cup off the table and then ran away really fast. '
-     'Lucas laughed so hard. Lucas is my little brother and he is four. I tried to draw Laser but cats are hard to draw.',
-     'Laser running away', 'Funny moment with kitten Laser and little brother Lucas.', False,
-     ['pets', 'family', 'drawing']),
-    ('tag', '2026-10-09', 'Friends', 'The biggest game of tag',
-     'At recess me and one friend started playing tag. Then another kid came and said can I join? '
-     'Then two more people said can I join? Then it was like the whole class. The game kept getting bigger and bigger. '
-     'Even our teacher played for a minute.',
-     'Everybody joining the game', 'A game of tag at recess grew to include the whole class.', True,
-     ['friends', 'school', 'games']),
-    ('ice-cream', '2026-10-11', 'Food & Treats', 'Purple ice cream on a waffle',
-     'We went to the ice cream shop with my whole family. I got purple ice cream on a waffle. '
-     'Lucas got sprinkles everywhere. I had no tummy ache.',
-     'Purple ice cream', 'Family trip to the ice cream shop.', False,
-     ['food', 'family', 'treats']),
-    ('lab', '2026-10-14', 'Science & Imagination', 'I did science',
-     'I wanted to do science so me and mom went to the store to get ingredients. We made a volcano with baking soda '
-     'and vinegar. It fizzed up so high. When I grow up I want my own lab, maybe on the moon.',
-     'The volcano fizzing', 'Made a baking soda volcano with mom.', True,
-     ['science', 'mom', 'experiments']),
-    ('moon-school', '2026-10-15', 'Science & Imagination', 'If school was on the moon',
-     'Today I thought about if school was on the moon. There is no gravity so kids would float in the air. '
-     'A kid floating would say can I join while he is floating. Everybody would need helmets or they could not breathe.',
-     'Floating kids', 'Imagined a school on the moon where everyone floats.', False,
-     ['space', 'imagination', 'school']),
-    ('rain-movie', '2026-10-18', 'Family', 'Movie theater day',
-     'It rained so we went to the movie theater. We saw a wizard movie and I got popcorn and gummy worms. '
-     'More gummy worms. I wish my puppy could come to the movies, but I do not have a puppy yet.',
-     'Gummy worms', 'Rainy day at the movie theater.', False,
-     ['movies', 'treats', 'puppy-wish']),
-    ('grandma', '2026-10-21', 'Family', 'Helping grandma',
-     'I helped grandma in her garden because she is old and her back hurts. I pulled weeds and she gave me a cookie. '
-     'She told me a story about when my mom was little.',
-     "Grandma's story", 'Helped grandma with the garden and heard a story about mom.', False,
-     ['grandma', 'helping', 'family']),
-    ('carpool', '2026-10-23', 'Friends', 'Carpool singing',
-     'In carpool today everybody was singing the same song really loud. Jack kept poking me and it was annoying '
-     'but kind of funny. Nobody puked in the car this time.',
-     'Singing in the car', 'Loud, funny carpool ride with friends.', False,
-     ['friends', 'music', 'school']),
-    ('waterpark', '2026-10-25', 'Holidays & Trips', 'Indoor water park',
-     'We went to the indoor water park. There was a wave pool and a really steep slide. I was a little scared '
-     'but I went down anyway and it was so fast. The water was just lukewarm. After we got popsicles.',
-     'The steep slide', 'Went down the steep water slide even though it was scary.', True,
-     ['swimming', 'brave', 'treats']),
-    ('halloween', '2026-10-31', 'Holidays & Trips', 'Halloween',
-     "I was an astronaut for Halloween and Lucas was a dinosaur. We got so much candy. I traded my raisins for "
-     "Lucas's chocolate. Laser was scared of the doorbell.",
-     'Trading candy', 'Trick-or-treating as an astronaut with Lucas.', False,
-     ['holiday', 'family', 'space']),
-    ('sleepover', '2026-11-06', 'Friends', 'Sleepover party',
-     'I had a sleepover with my friends. We had pizza for dinner, like a hundred pizzas (not really, just two). '
-     'We had a dance party and stayed up late. It was kind of like a birthday party but even better.',
-     'Dance party', 'Sleepover with friends, pizza and dancing.', True,
-     ['friends', 'party', 'food']),
-    ('smash', '2026-11-07', 'Friends', 'Video game tournament',
-     'The morning after the sleepover we had a video game tournament. I won two rounds and Anders won the rest. '
-     'Mom said we had to go outside after that.',
-     'Winning two rounds', 'Video game tournament with friends after the sleepover.', False,
-     ['games', 'friends']),
-    ('lazy', '2026-11-08', 'Family', 'A resting day',
-     'Today my perfect day was honestly resting. I stayed in my pajamas and read books and cuddled with mom. '
-     'Laser slept on my feet.',
-     'Cuddling with mom', 'A cozy rest day reading and cuddling.', False,
-     ['rest', 'mom', 'reading']),
-    ('stars', '2026-11-10', 'Science & Imagination', 'Drawing my perfect day',
-     'I drew my perfect day. It has a puppy, a pool, an ice cream shop a couple miles away, a candy sign with people '
-     'waiting in line, and a lab on the moon. I want to send it to my parents so they know what to make.',
-     'The candy sign', 'Drew a picture of a perfect day with everything in it.', False,
-     ['drawing', 'imagination', 'puppy-wish']),
-    ('first-snow', '2026-11-13', 'Outdoors & Sports', 'First snow',
-     'It snowed! It was not a lot but we still went sledding down the little hill. Lucas went down on his tummy. '
-     'My cheeks got really cold and then we had hot chocolate.',
-     'Sledding', 'First snow of the year and sledding with Lucas.', False,
-     ['snow', 'outside', 'family']),
-    ('puppy', '2026-11-14', 'Pets', 'We met a puppy!',
-     'We went to the animal shelter just to look and there was a Pomeranian puppy. It licked my hand. '
-     'Mom said maybe. Maybe means almost yes. This is the best day ever.',
-     'The puppy licking my hand', 'Met a Pomeranian puppy at the shelter and mom said maybe.', True,
-     ['pets', 'puppy-wish', 'family']),
-]
-
-KID_LINKS = [
-    ('rain-movie', 'puppy', 'puppy wish'), ('stars', 'puppy', 'puppy wish'),
-    ('lab', 'moon-school', 'space'), ('moon-school', 'halloween', 'space'),
-    ('tag', 'carpool', 'friends'), ('sleepover', 'smash', 'same weekend'),
-    ('ice-cream', 'waterpark', 'treats'), ('laser', 'lazy', 'Laser'),
-    ('first-snow', 'halloween', 'Lucas'),
-]
 
 ADULT_ENTRIES = [
     ('commute', '2026-10-01', 'Work', 'Train was late again',
@@ -248,8 +144,9 @@ ADULT_LINKS = [
 # value within one entry, except slots listed in DISTINCT_SLOTS.
 # ---------------------------------------------------------------------------
 
-def V(titles, opener, details, favorites):
-    return {'titles': titles, 'opener': opener, 'details': details, 'favorites': favorites}
+def V(titles, opener, details, favorites, w=1.0):
+    """w: relative weight; use < 1 for things that should be rare (field trips)."""
+    return {'titles': titles, 'opener': opener, 'details': details, 'favorites': favorites, 'w': w}
 
 
 SCHOOL_MONTHS = {1, 2, 3, 4, 5, 9, 10, 11, 12}
@@ -257,182 +154,6 @@ WARM = {5, 6, 7, 8, 9}
 COLD = {12, 1, 2}
 ANY = None
 DISTINCT_SLOTS = {'groceries'}
-
-KID_SLOTS = {
-    'friend': ['Jack', 'Jafie', 'Anders', 'Priya', 'Leo', 'Sofia', 'Noah'],
-    'snack': ['goldfish', 'gummy worms', 'popsicles', 'pretzels', 'cookies'],
-    'flavor': ['purple', 'mint chip', 'strawberry', 'cookie dough', 'chocolate', 'rainbow'],
-    'dinner': ['pizza', 'hamburgers and french fries', 'tacos', 'spaghetti', 'chicken nuggets', 'mac and cheese'],
-    'subject': ['math', 'reading', 'art', 'music', 'science'],
-    'book': ['a dragon book', 'a book about sharks', 'a comic book', 'a mystery book', 'a book about planets'],
-    'game': ['tag', 'hide and seek', 'four square', 'red light green light', 'freeze tag'],
-    'planet': ['the moon', 'Mars', 'Saturn', 'Jupiter'],
-}
-
-KID_ACTIVITIES = [
-    dict(category='School', months=SCHOOL_MONTHS, days='weekday', weight=6, tags=['school'],
-         extras=['{friend} sat next to me at lunch.', 'Lunch was {dinner}.', 'I got a sticker for helping clean up.'],
-         variants=[
-             V(['Recess', 'The best recess'], 'At recess we played {game}.',
-               ['Then another kid said can I join? Then two more said can I join?', 'The game got so big the whole class was playing.',
-                '{friend} was it for the whole time.', 'I was the last one caught!'],
-               ['Recess', 'Playing {game}', 'Being the last one caught']),
-             V(['{subject} class', 'What I learned today'], 'Today in {subject} we learned something new.',
-               ['I raised my hand two times.', 'It was hard at first but then I got it.', 'Ms. Rivera said I did a great job.'],
-               ['{subject}', 'Getting it right']),
-             V(['Story time', 'Ms. Rivera read to us'], 'My teacher Ms. Rivera read us {book}.',
-               ['Everybody was quiet because it was so good.', 'I want to read it again at home.', 'It had a really surprising ending.'],
-               ['{book}', 'The ending']),
-             V(['Indoor recess', 'Rainy school day'], 'It was raining so we had indoor recess.',
-               ['We played a board game and I almost won.', 'We built a tower out of blocks taller than {friend}.'],
-               ['The block tower', 'The board game']),
-             V(['Field trip!', 'Our field trip'], 'Our class went on a field trip to the science museum.',
-               ['There was a planet room and it was dark like space.', 'I saw a real moon rock.', 'We ate lunch on the bus.'],
-               ['The moon rock', 'The planet room']),
-         ]),
-    dict(category='Friends', months=ANY, days='any', weight=4, tags=['friends', 'play'],
-         extras=['Nobody was annoying me.', 'We had {snack} and juice boxes.'],
-         variants=[
-             V(['Fort with {friend}', 'Playdate with {friend}'], '{friend} came over to play.',
-               ['We built a fort out of couch cushions.', 'We made a sign that said NO GROWNUPS.', 'Lucas wanted to come in so we let him.'],
-               ['The fort', 'Playing with {friend}']),
-             V(['At {friend}\'s house', 'Playdate'], 'I went to {friend}\'s house.',
-               ['We made up a secret handshake.', 'We had a dance party in the living room.', 'We had a little fight but then we said sorry.'],
-               ['Our secret handshake', 'The dance party']),
-             V(['Park with {friend}', '{game} at the park'], 'Me and {friend} played {game} at the park.',
-               ['More kids came and asked can I join?', 'Then it was like twenty kids.', 'We played until it got dark.'],
-               ['Everybody joining', 'Playing {game}']),
-             V(['Video games', 'Game day'], '{friend} came over and we played video games.',
-               ['I won two rounds.', 'Mom said we had to go outside after one hour.', 'We battled for like six hours. Not really, like one hour.'],
-               ['Winning', 'Video games with {friend}']),
-         ]),
-    dict(category='Family', months=ANY, days='any', weight=4, tags=['family'],
-         extras=['We had {dinner} for dinner.', 'Lucas is my little brother and he is silly.'],
-         variants=[
-             V(['Playing with Lucas', 'Me and Lucas'], 'Me and Lucas played together all morning.',
-               ['We made a race track for his cars.', 'We fought a little but then we made up.', 'He laughed so hard he got the hiccups.'],
-               ['The race track', 'Lucas laughing']),
-             V(['Day with mom', 'Mom and me'], 'I spent the day with mom.',
-               ['We went to the library and I got {book}.', 'We cuddled on the couch.', 'She let me pick the music in the car.'],
-               ['Cuddling with mom', 'Picking the music', '{book}']),
-             V(['Cooking with dad', 'Dad and me'], 'I helped dad make {dinner}.',
-               ['I stirred the pot by myself.', 'It was a little messy.', 'Everybody said it was yummy.'],
-               ['Stirring the pot', 'Making {dinner}']),
-             V(['Game night', 'Family game night'], 'We had family game night.',
-               ['I won the card game.', 'Lucas made up his own rules.', 'Dad made popcorn.'],
-               ['Winning the card game', 'Popcorn']),
-             V(['Grandma', 'Visiting grandma'], 'We went to visit grandma.',
-               ['I helped her because she is old.', 'She told me a story about when mom was little.', 'She gave me a cookie.'],
-               ['Grandma\'s story', 'The cookie']),
-             V(['Resting day', 'Pajama day'], 'My day was honestly resting.',
-               ['I stayed in my pajamas.', 'I read {book}.', 'I did not have to do any chores.'],
-               ['Pajamas', 'No chores', 'Reading']),
-         ]),
-    dict(category='Pets', months=ANY, days='any', weight=3, tags=['pets', 'Laser'],
-         extras=['I still want a puppy too. A really cute one.'],
-         variants=[
-             V(['Laser in a box', 'Silly Laser'], 'Laser sat in a box that was way too small for her.',
-               ['She looked so proud.', 'Lucas laughed so hard.'], ['Laser in the box']),
-             V(['Laser chased a bug', 'Laser the hunter'], 'Laser chased a bug all over the house.',
-               ['She jumped on the couch and knocked off a pillow.', 'She never caught it.'], ['Laser jumping']),
-             V(['Feeding Laser', 'My job'], 'I fed Laser her breakfast all by myself.',
-               ['Mom said I am very responsible.', 'Laser rubbed on my legs to say thank you.'], ['Feeding Laser']),
-             V(['Laser the sleepy cat', 'Nap time'], 'Laser slept on my feet the whole time I read.',
-               ['She purred really loud.', 'I did not want to move.'], ['Laser purring']),
-             V(['Drawing Laser'], 'I tried to draw Laser.',
-               ['Cats are hard to draw.', 'Her tail came out too long but mom put it on the fridge.'], ['My drawing on the fridge']),
-         ]),
-    dict(category='Outdoors & Sports', months=WARM, days='any', weight=4, tags=['outside', 'summer'],
-         extras=['It was sunny and hot, like 80 degrees.', 'Birds were chirping.', 'After we had {snack}.'],
-         variants=[
-             V(['Pool day', 'Swimming'], 'We went to the pool.',
-               ['I talked under the water.', 'The water was just lukewarm.', 'I jumped off the side by myself.'],
-               ['Talking under water', 'Jumping in']),
-             V(['Pump track', 'Bike ride'], 'We rode bikes on the pump track.',
-               ['It is like a skate park made of dirt for bikes.', 'I went over the big bumps without pedaling.', 'I fell once but got back up.'],
-               ['The big bumps', 'Riding my bike']),
-             V(['At the park', 'Park day'], 'I played at the park with Lucas.',
-               ['I went down the big slide.', 'I found a four-leaf clover!', 'We went really high on the swings.'],
-               ['The four-leaf clover', 'The big slide', 'Swinging high']),
-             V(['Frisbee', 'Backyard'], 'I played frisbee in the backyard with dad.',
-               ['I caught it five times in a row.', 'It went over the fence once.'], ['Catching five in a row']),
-         ]),
-    dict(category='Outdoors & Sports', months=COLD, days='any', weight=3, tags=['snow', 'winter'],
-         extras=['My cheeks got so cold.', 'We had hot chocolate after.'],
-         variants=[
-             V(['Sledding', 'Snow day'], 'It snowed and we went sledding.',
-               ['Lucas went down the hill on his tummy.', 'I went so fast I almost hit a tree.'], ['Sledding']),
-             V(['Snowman', 'Building a snowman'], 'We built a snowman in the front yard.',
-               ['He had a carrot nose and button eyes.', 'Lucas named him Mister Cold.'], ['The snowman']),
-             V(['Snowball fight'], 'We had a snowball fight with the neighbors.',
-               ['I hit dad right in the back.', 'Our team won.'], ['Hitting dad with a snowball']),
-         ]),
-    dict(category='Outdoors & Sports', months={3, 4, 5, 9, 10}, days='weekend', weight=2, tags=['sports', 'soccer'],
-         extras=['We had orange slices at halftime.'],
-         variants=[
-             V(['Soccer game', 'My game today'], 'I had a soccer game this morning.',
-               ['I almost scored a goal.', 'Our team won!', 'Coach said I was a great defender.'], ['Almost scoring', 'Winning']),
-             V(['Soccer practice'], 'We had soccer practice in the rain.',
-               ['Everybody got muddy.', 'We practiced kicking really far.'], ['Getting muddy']),
-         ]),
-    dict(category='Food & Treats', months=ANY, days='any', weight=3, tags=['food', 'treats'],
-         extras=['I had no tummy ache.'],
-         variants=[
-             V(['Ice cream!', '{flavor} ice cream'], 'We went to the ice cream shop and I got {flavor} ice cream.',
-               ['I put it on a waffle.', 'Lucas got it all over his face.'], ['{flavor} ice cream']),
-             V(['Chocolate pancakes', 'Pancake morning'], 'Dad made chocolate pancakes for breakfast.',
-               ['I ate three.', 'I helped flip one and it only kind of broke.'], ['Chocolate pancakes']),
-             V(['{dinner} night', 'Yummy dinner'], 'We had {dinner} for dinner.',
-               ['It is my favorite.', 'I want it for every meal.'], ['{dinner}']),
-             V(['Snack attack', 'Snacks!'], 'I ate {snack}, more {snack}, and more {snack}.',
-               ['Mom said that is enough {snack}.', 'I shared some with Lucas.'], ['{snack}']),
-             V(['Candy store'], 'We went to the candy store with the big sign that says CANDY.',
-               ['There were so many people waiting in line.', 'I picked gummy worms.'], ['Gummy worms']),
-         ]),
-    dict(category='Science & Imagination', months=ANY, days='any', weight=3, tags=['science', 'imagination'],
-         extras=['When I grow up I want my own lab.'],
-         variants=[
-             V(['Science experiment', 'I did science'], 'I did a science experiment with mom.',
-               ['We mixed baking soda and vinegar.', 'It fizzed up really high.', 'We wrote down what happened like real scientists.'],
-               ['The fizzing']),
-             V(['My invention', 'Space food machine'], 'I invented a machine that makes space food.',
-               ['It has a conveyor belt that brings the food to a different table.', 'There is a piston that pushes it through a tube.'],
-               ['The conveyor belt', 'The piston']),
-             V(['School on {planet}', 'If school was in space'], 'I thought about what school would be like on {planet}.',
-               ['Kids would float because there is no gravity.', 'Everybody needs a helmet.', 'A floating kid would say can I join?'],
-               ['Floating kids']),
-             V(['My drawing', 'I drew {planet}'], 'I drew a picture of {planet}.',
-               ['I put a rocket and an astronaut on it.', 'Mom hung it on the fridge.'], ['My drawing']),
-         ]),
-]
-
-KID_EVENTS = [  # (month, day, category, title, body, favorite, milestone, tags)
-    (12, 25, 'Holidays & Trips', 'Christmas!',
-     'It was Christmas and it snowed. I got a science kit and Lucas got a toy truck. We went sledding after presents.',
-     'The science kit', False, ['holiday', 'family', 'snow']),
-    (10, 31, 'Holidays & Trips', 'Halloween',
-     'I dressed up for Halloween and went trick-or-treating with Lucas. We got so much candy.',
-     'Candy', False, ['holiday', 'candy']),
-    (11, 27, 'Holidays & Trips', 'Thanksgiving',
-     'We went to grandma\'s for Thanksgiving. I said I was thankful for my family and pie.',
-     'Pie', False, ['holiday', 'grandma']),
-    (3, 14, 'Holidays & Trips', 'My birthday!',
-     'It was my birthday! I had a party with all my friends and a cake shaped like a rocket.',
-     'The rocket cake', True, ['birthday', 'party', 'friends']),
-    (6, 5, 'School', 'Last day of school',
-     'Today was the last day of school! We had a party in class and signed each other\'s shirts. Summer!',
-     'Signing shirts', True, ['school', 'summer']),
-    (8, 26, 'School', 'First day of school',
-     'First day of school. My new teacher is nice and {friend} is in my class again. I was a little nervous.',
-     '{friend} in my class', True, ['school', 'new']),
-    (7, 15, 'Holidays & Trips', 'Water park vacation',
-     'We went on vacation to a water park. There was a wave pool and a really steep slide. I rode everything.',
-     'The wave pool', True, ['vacation', 'swimming']),
-    (4, 20, 'Pets', 'Laser came home',
-     'We got a kitten! Her name is Laser. She is tiny and gray and she sleeps a lot.',
-     'Naming her Laser', True, ['pets', 'Laser', 'new']),
-]
-
 
 ADULT_SLOTS = {
     'groceries': ['eggs', 'spinach', 'chicken thighs', 'rice', 'oat milk', 'bananas', 'coffee', 'yogurt',
@@ -563,5 +284,10 @@ ADULT_EVENTS = [
      'Everything normal', False, ['health', 'appointments']),
     (9, 2, 'Home & Errands', 'Moved apartments',
      'Moving day. Friends helped carry boxes and we ate pizza on the floor. New place gets so much light.',
-     'Pizza on the floor', True, ['home', 'moving', 'friends']),
+     'Pizza on the floor', True, ['home', 'moving', 'friends'], 2025),
 ]
+
+
+ADULT = dict(key='adult', name='Jordan', kind='adult', themeId='indigo', categories=ADULT_CATEGORIES,
+             slots=ADULT_SLOTS, activities=ADULT_ACTIVITIES, events=ADULT_EVENTS,
+             written=ADULT_ENTRIES, links=ADULT_LINKS, introduced={})
