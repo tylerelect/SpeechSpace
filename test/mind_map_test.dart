@@ -7,6 +7,7 @@ import 'package:speechspace/screens/mind_map_page.dart';
 import 'package:speechspace/services/app_controller.dart';
 import 'package:speechspace/services/layout_store.dart';
 import 'package:speechspace/services/repository.dart';
+import 'package:speechspace/widgets/space_art.dart';
 
 import 'support/fake_backend.dart';
 
@@ -36,6 +37,24 @@ double scale(WidgetTester tester) =>
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  group('Kids map follows the theme', () {
+    const names = {'space': 'Star map', 'ocean': 'Sea map', 'sunshine': 'Garden map'};
+    for (final entry in names.entries) {
+      for (final width in [360.0, 1200.0]) {
+        testWidgets('${entry.key} at ${width.toInt()}px', (tester) async {
+          final c = await demo('demo-alex');
+          await c.setTheme(entry.key);
+          await pumpMap(tester, c, size: Size(width, 1000));
+          expect(tester.takeException(), isNull);
+          expect(find.text(entry.value), findsOneWidget);
+          final kinds = tester.widgetList<SpaceArt>(find.byType(SpaceArt)).map((a) => a.kind).toSet();
+          expect(kinds, containsAll([artFor(entry.key, ArtRole.hero), artFor(entry.key, ArtRole.sticker)]));
+          if (entry.key != 'space') expect(kinds, isNot(contains(SpaceArtKind.star)));
+        });
+      }
+    }
+  });
 
   group('phase 1: existing capabilities', () {
     test('link, duplicate/self-link rejection, unlink', () async {

@@ -59,6 +59,10 @@ app.*.map.json
 # Environment Variables / API Keys
 # ==========================================
 
+# Local Flutter dart-define secrets (token)
+config/dev.local.json
+config/*.local.json
+
 # Ignore all .env files, including nested ones
 .env
 .env.*

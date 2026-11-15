@@ -40,6 +40,42 @@ void main() {
     }
   });
 
+  group('Ocean and Sunshine', () {
+    for (final theme in ['ocean', 'sunshine']) {
+      testWidgets('$theme: themed art, Nunito font, calendar fits a phone', (tester) async {
+        final c = await remote(fixture(), profile: 'k1');
+        await c.setTheme(theme);
+        expect(c.spaceTheme.id, theme);
+        expect(c.theme.textTheme.bodyMedium?.fontFamily, contains('Nunito'));
+        for (final view in CalendarView.values) {
+          c.setCalendar(view, DateTime(2026, 11, 14));
+          await pumpCalendar(tester, c, size: const Size(320, 900));
+          expect(tester.takeException(), isNull, reason: '$theme ${view.wire}');
+        }
+        // The title art follows the theme (no rocket/planet outside Space).
+        final kinds = tester.widgetList<SpaceArt>(find.byType(SpaceArt)).map((a) => a.kind).toSet();
+        expect(kinds, contains(artFor(theme, ArtRole.big)));
+        expect(kinds, isNot(contains(SpaceArtKind.planet)));
+      });
+
+      testWidgets('$theme: backdrop and trail render without errors', (tester) async {
+        await tester.pumpWidget(MaterialApp(
+            builder: (_, child) => SpaceCursorTrail(enabled: true, themeId: theme, child: child!),
+            home: Scaffold(body: Stack(children: [Positioned.fill(child: ThemeBackdrop(theme)), const Center(child: Text('Hi'))]))));
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: const Offset(10, 10));
+        addTearDown(mouse.removePointer);
+        for (var x = 20.0; x < 300; x += 25) {
+          await mouse.moveTo(Offset(x, x / 2));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await tester.tap(find.text('Hi'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      });
+    }
+  });
+
   group('space cursor trail', () {
     Future<void> pump(WidgetTester tester, {required bool enabled, required VoidCallback onTap}) =>
         tester.pumpWidget(MaterialApp(builder: (_, child) => SpaceCursorTrail(enabled: enabled, child: child!),

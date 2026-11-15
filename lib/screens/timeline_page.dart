@@ -46,7 +46,7 @@ class _TimelinePageState extends State<TimelinePage> {
         Text('${entries.length} ${copy.entryNounPlural.toLowerCase()}', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
         if (entries.isEmpty) const Card(child: Padding(padding: EdgeInsets.all(24), child: Text('Nothing matches yet.'))),
-        ...entries.map((e) => MemoryTile(entry: e, kids: copy.isKids,
+        ...entries.map((e) => MemoryTile(entry: e, kids: copy.isKids, themeId: widget.controller.spaceTheme.id,
             onTap: () => openEntryEditor(context, widget.controller, entry: e))),
         const SizedBox(height: 30),
       ],

@@ -145,7 +145,7 @@ class _KidsSoundCard extends StatelessWidget {
         const Text('Background music', style: TextStyle(fontWeight: FontWeight.w600)),
         SwitchListTile.adaptive(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Play space music'),
+          title: const Text('Play music'),
           value: sound.musicOn,
           onChanged: (_) => sound.toggleMusic(),
         ),

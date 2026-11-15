@@ -32,7 +32,7 @@ class SpeechSpaceApp extends StatelessWidget {
         themeAnimationDuration: const Duration(milliseconds: 350),
         home: AppShell(controller: controller),
         // Always wrapped (just toggled) so switching profiles keeps navigation state.
-        builder: (context, child) => SpaceCursorTrail(enabled: controller.isKids, child: child!),
+        builder: (context, child) => SpaceCursorTrail(enabled: controller.isKids, themeId: controller.spaceTheme.id, child: child!),
       ),
     );
   }

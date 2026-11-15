@@ -65,12 +65,12 @@ class TodayPage extends StatelessWidget {
         Text(copy.todaySection, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
         if (current.isEmpty) Card(child: Padding(padding: const EdgeInsets.all(24), child: Text(copy.todayEmpty))),
-        ...current.map((e) => MemoryTile(entry: e, kids: copy.isKids, onTap: () => openEntryEditor(context, controller, entry: e))),
+        ...current.map((e) => MemoryTile(entry: e, kids: copy.isKids, themeId: controller.spaceTheme.id, onTap: () => openEntryEditor(context, controller, entry: e))),
         const SizedBox(height: 20),
         Text(copy.recentSection, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
         ...entries.where((e) => !current.any((c) => c.id == e.id)).take(copy.isKids ? 3 : 5)
-            .map((e) => MemoryTile(entry: e, kids: copy.isKids, onTap: () => openEntryEditor(context, controller, entry: e))),
+            .map((e) => MemoryTile(entry: e, kids: copy.isKids, themeId: controller.spaceTheme.id, onTap: () => openEntryEditor(context, controller, entry: e))),
         const SizedBox(height: 26),
       ],
     )));
@@ -111,10 +111,8 @@ class _KidsMission extends StatelessWidget {
             )),
           ]),
         ])),
-        if (t.id == 'space')
-          Transform.rotate(angle: .35, child: const SpaceArt(SpaceArtKind.rocket, size: 120))
-        else
-          Icon(t.icon, size: 96, color: scheme.primary),
+        // The hero picture follows the theme: rocket, fish or sun.
+        Transform.rotate(angle: t.id == 'space' ? .35 : 0, child: SpaceArt.of(t.id, ArtRole.hero, size: 120)),
       ],
     )));
   }
@@ -140,9 +138,10 @@ class _Metric extends StatelessWidget {
 }
 
 class MemoryTile extends StatelessWidget {
-  const MemoryTile({super.key, required this.entry, required this.onTap, this.kids = false});
+  const MemoryTile({super.key, required this.entry, required this.onTap, this.kids = false, this.themeId = 'space'});
   final JournalEntry entry;
   final bool kids;
+  final String themeId;
   final VoidCallback onTap;
 
   @override
@@ -152,7 +151,7 @@ class MemoryTile extends StatelessWidget {
     borderRadius: BorderRadius.circular(20), onTap: onTap,
     child: Padding(padding: const EdgeInsets.all(16), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       kids
-          ? const Padding(padding: EdgeInsets.all(2), child: SpaceArt(SpaceArtKind.star, size: 44))
+          ? Padding(padding: const EdgeInsets.all(2), child: SpaceArt.of(themeId, ArtRole.sticker, size: 44))
           : Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(
               color: scheme.primaryContainer, borderRadius: BorderRadius.circular(14)),
               child: Icon(Icons.auto_stories_outlined, color: scheme.onPrimaryContainer)),

@@ -27,3 +27,9 @@ flutter:
   assets:
     - assets/sound/
     - assets/sound/videos/
+  # Nunito (SIL OFL, see assets/fonts/OFL.txt): a round, friendly, easy-to-read font for Kids mode.
+  # One variable file covers every weight.
+  fonts:
+    - family: Nunito
+      fonts:
+        - asset: assets/fonts/Nunito.ttf

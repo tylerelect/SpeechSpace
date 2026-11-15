@@ -81,7 +81,12 @@ class _AppShellState extends State<AppShell> {
         (Icons.wb_sunny_outlined, Icons.wb_sunny, copy.navToday),
         (Icons.calendar_month_outlined, Icons.calendar_month, copy.navCalendar),
         (Icons.auto_stories_outlined, Icons.auto_stories, copy.navMemories),
-        (copy.isKids ? Icons.auto_awesome_outlined : Icons.hub_outlined, copy.isKids ? Icons.auto_awesome : Icons.hub, copy.navMindMap),
+        // Kids: the map is named and drawn for the active theme (Star, Sea or Garden map).
+        if (copy.isKids)
+          (KidsDecor.of(controller.spaceTheme.id).navIcon, KidsDecor.of(controller.spaceTheme.id).navIconSelected,
+              KidsDecor.of(controller.spaceTheme.id).mapName)
+        else
+          (Icons.hub_outlined, Icons.hub, copy.navMindMap),
         (Icons.grid_view_outlined, Icons.grid_view_rounded, copy.navActivity),
         (Icons.settings_outlined, Icons.settings, copy.navSettings),
       ];
@@ -95,8 +100,8 @@ class _AppShellState extends State<AppShell> {
       ];
       final width = MediaQuery.sizeOf(context).width;
       final wide = width >= 880;
-      // The Space theme paints a night sky behind the whole shell.
-      final sky = controller.isKids && controller.spaceTheme.id == 'space';
+      // Each Kids theme paints its own scene (night sky, sea, meadow) behind the whole shell.
+      final sky = controller.isKids;
       final scaffold = Scaffold(
         backgroundColor: sky ? Colors.transparent : null,
         appBar: AppBar(
@@ -114,7 +119,7 @@ class _AppShellState extends State<AppShell> {
           ]),
           actions: [
             if (controller.isKids) ListenableBuilder(listenable: controller.sound, builder: (context, _) => IconButton(
-              tooltip: controller.sound.musicOn ? 'Turn music off' : 'Play space music',
+              tooltip: controller.sound.musicOn ? 'Turn music off' : 'Play music',
               onPressed: controller.sound.toggleMusic,
               icon: Icon(controller.sound.musicOn ? Icons.music_note_rounded : Icons.music_off_outlined),
             )),
@@ -160,7 +165,7 @@ class _AppShellState extends State<AppShell> {
         ),
       );
       // Same tree shape either way so switching profiles keeps page state.
-      return Stack(children: [Positioned.fill(child: sky ? const SpaceBackdrop() : const SizedBox.shrink()), scaffold]);
+      return Stack(children: [Positioned.fill(child: sky ? ThemeBackdrop(controller.spaceTheme.id) : const SizedBox.shrink()), scaffold]);
     });
   }
 }

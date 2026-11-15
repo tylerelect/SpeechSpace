@@ -6,15 +6,17 @@ import 'package:flutter/scheduler.dart';
 
 import 'space_art.dart';
 
-/// Kids-mode pointer fun. With a mouse, a little rocket follows the cursor
-/// and leaves a trail of sparkles. Taps on a touch screen burst into stars.
+/// Kids-mode pointer fun, themed: a rocket with star sparkles in Space, a fish
+/// with rising bubbles in Ocean, a butterfly with flower petals in Sunshine.
+/// With a mouse the rider follows the cursor; taps (or touches) burst.
 ///
 /// The whole effect sits on top of [child] and never takes pointer events.
 /// The ticker runs only while something is moving, so the effect costs
 /// nothing when the screen is still and doesn't hold up `pumpAndSettle`.
 class SpaceCursorTrail extends StatefulWidget {
-  const SpaceCursorTrail({super.key, required this.enabled, required this.child});
+  const SpaceCursorTrail({super.key, required this.enabled, required this.child, this.themeId = 'space'});
   final bool enabled;
+  final String themeId;
   final Widget child;
 
   @override
@@ -24,6 +26,7 @@ class SpaceCursorTrail extends StatefulWidget {
 class _SpaceCursorTrailState extends State<SpaceCursorTrail> with SingleTickerProviderStateMixin {
   late final Ticker _ticker = createTicker(_tick);
   final _scene = _TrailScene();
+  late TrailStyle _style = TrailStyle.of(widget.themeId);
   Duration _last = Duration.zero;
 
   bool get _active => widget.enabled && !(MediaQuery.maybeOf(context)?.disableAnimations ?? false);
@@ -56,6 +59,17 @@ class _SpaceCursorTrailState extends State<SpaceCursorTrail> with SingleTickerPr
   void didUpdateWidget(SpaceCursorTrail old) {
     super.didUpdateWidget(old);
     if (!widget.enabled) _scene.clear();
+    if (old.themeId != widget.themeId) {
+      _style = TrailStyle.of(widget.themeId);
+      _scene.style = _style;
+      _scene.sparks.clear();
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _scene.style = _style;
   }
 
   @override
@@ -84,6 +98,26 @@ class _SpaceCursorTrailState extends State<SpaceCursorTrail> with SingleTickerPr
   );
 }
 
+enum SparkShape { star, bubble, petal }
+
+class TrailStyle {
+  const TrailStyle(this.colors, this.shape, this.rider, {this.rise = 0, this.flaps = false});
+  final List<Color> colors;
+  final SparkShape shape;
+  final SpaceArtKind rider;
+  final double rise; // upward drift in px/s (bubbles float up)
+  final bool flaps;
+
+  static TrailStyle of(String themeId) => switch (themeId) {
+    'ocean' => const TrailStyle([Color(0xFFFFFFFF), Color(0xFF7FD6F7), Color(0xFF3FB4E8), Color(0xFFB8F0FF)],
+        SparkShape.bubble, SpaceArtKind.fish, rise: -55),
+    'sunshine' => const TrailStyle([Color(0xFFFF8FB8), Color(0xFFFFC94D), Color(0xFFFFA0C8), Color(0xFFFFE066)],
+        SparkShape.petal, SpaceArtKind.butterfly, flaps: true),
+    _ => const TrailStyle([Color(0xFFFFE066), Color(0xFFFF8FAB), Color(0xFF7DE2D1), Color(0xFFB8A9FF), Colors.white],
+        SparkShape.star, SpaceArtKind.rocket),
+  };
+}
+
 class _Spark {
   _Spark(this.pos, this.vel, this.life, this.size, this.color, this.spin);
   Offset pos;
@@ -96,7 +130,9 @@ class _Spark {
 }
 
 class _TrailScene extends ChangeNotifier {
-  static const _colors = [Color(0xFFFFE066), Color(0xFFFF8FAB), Color(0xFF7DE2D1), Color(0xFFB8A9FF), Colors.white];
+  TrailStyle style = TrailStyle.of('space');
+  List<Color> get _colors => style.colors;
+  double clock = 0;
   // Rides just below-right of the pointer so it never covers what you click.
   static const _offset = Offset(20, 22);
   static const _maxSparks = 90;
@@ -128,7 +164,7 @@ class _TrailScene extends ChangeNotifier {
     for (var i = 0; i < n; i++) {
       final a = _rng.nextDouble() * math.pi * 2;
       final speed = 60 + _rng.nextDouble() * 140;
-      _add(_Spark(at, Offset(math.cos(a), math.sin(a)) * speed, .45 + _rng.nextDouble() * .4,
+      _add(_Spark(at, Offset(math.cos(a), math.sin(a)) * speed + Offset(0, style.rise), .45 + _rng.nextDouble() * .4,
           4 + _rng.nextDouble() * 5, _colors[_rng.nextInt(_colors.length)], _rng.nextDouble() * 6 - 3));
     }
   }
@@ -141,6 +177,7 @@ class _TrailScene extends ChangeNotifier {
   /// Advances the scene; returns whether anything is still moving.
   bool step(double dt) {
     var moving = false;
+    clock += dt;
     final t = target, r = rocket;
     if (t != null && r != null) {
       final next = Offset.lerp(r, t, 1 - math.exp(-dt * 10))!;
@@ -153,7 +190,7 @@ class _TrailScene extends ChangeNotifier {
           _travel -= 7;
           final back = Offset(-math.cos(heading), -math.sin(heading));
           final side = Offset(-back.dy, back.dx) * (_rng.nextDouble() * 2 - 1);
-          _add(_Spark(next + back * 14, (back * 40) + side * 30, .5 + _rng.nextDouble() * .35,
+          _add(_Spark(next + back * 14, (back * 40) + side * 30 + Offset(0, style.rise), .5 + _rng.nextDouble() * .35,
               2.5 + _rng.nextDouble() * 3.5, _colors[_rng.nextInt(_colors.length)], _rng.nextDouble() * 4 - 2));
         }
       }
@@ -189,8 +226,17 @@ class _TrailPainter extends CustomPainter {
       canvas.save();
       canvas.translate(s.pos.dx, s.pos.dy);
       canvas.rotate(s.spin * s.age);
-      canvas.drawPath(starPath(Offset.zero, r, r * .32, points: 4, rotation: 0),
-          Paint()..color = s.color.withValues(alpha: fade));
+      final paint = Paint()..color = s.color.withValues(alpha: fade);
+      switch (scene.style.shape) {
+        case SparkShape.star:
+          canvas.drawPath(starPath(Offset.zero, r, r * .32, points: 4, rotation: 0), paint);
+        case SparkShape.bubble:
+          canvas.drawCircle(Offset.zero, r, Paint()..color = s.color.withValues(alpha: fade * .25));
+          canvas.drawCircle(Offset.zero, r, Paint()..style = PaintingStyle.stroke..strokeWidth = 1.4
+              ..color = s.color.withValues(alpha: fade));
+        case SparkShape.petal:
+          canvas.drawOval(Rect.fromCenter(center: Offset.zero, width: r * 1.1, height: r * 2.1), paint);
+      }
       canvas.restore();
     }
     final r = scene.rocket;
@@ -198,9 +244,14 @@ class _TrailPainter extends CustomPainter {
       const side = 34.0;
       canvas.save();
       canvas.translate(r.dx, r.dy);
-      canvas.rotate(scene.heading + math.pi / 2); // the art points up
+      // Rocket and butterfly point up; the fish faces right.
+      canvas.rotate(scene.heading + (scene.style.rider == SpaceArtKind.fish ? 0 : math.pi / 2));
       canvas.translate(-side / 2, -side / 2);
-      paintRocket(canvas, const Size.square(side));
+      switch (scene.style.rider) {
+        case SpaceArtKind.fish: paintFish(canvas, const Size.square(side));
+        case SpaceArtKind.butterfly: paintButterfly(canvas, const Size.square(side), flap: .5 + .5 * math.cos(scene.clock * 16).abs());
+        default: paintRocket(canvas, const Size.square(side));
+      }
       canvas.restore();
     }
   }

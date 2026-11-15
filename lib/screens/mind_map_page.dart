@@ -7,6 +7,7 @@ import '../models/models.dart';
 import '../services/app_controller.dart';
 import '../services/layout_store.dart';
 import '../widgets/entry_editor.dart';
+import '../widgets/space_art.dart';
 
 /// Size of one card on the map.
 const mindMapNodeSize = Size(176, 72);
@@ -191,11 +192,12 @@ class _MindMapPageState extends State<MindMapPage> {
     final entries = controller.profileEntries;
     if (entries.isEmpty) return;
     final kids = controller.isKids;
+    final decor = KidsDecor.of(controller.spaceTheme.id);
     // Default: the 3 most recent entries (already sorted newest first).
     final chosen = entries.take(3).map((e) => e.id).toSet();
     final ok = await showDialog<bool>(context: context, builder: (ctx) => StatefulBuilder(
       builder: (ctx, update) => AlertDialog(
-        title: Text(kids ? 'Make new idea stars' : 'Generate ideas'),
+        title: Text(kids ? 'Make new idea ${decor.nouns}' : 'Generate ideas'),
         content: SizedBox(width: 440, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(kids ? 'Pick stories that go together. Gemini will suggest new ideas from them.'
               : 'Select related entries (up to 6). Gemini will suggest new ideas and recommendations.'),
@@ -230,7 +232,7 @@ class _MindMapPageState extends State<MindMapPage> {
       setState(() {});
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(count == 0
           ? 'No new ideas this time. Try picking different entries.'
-          : 'Added $count suggested ${count == 1 ? 'star' : 'stars'}. Tap one to keep or dismiss it.')));
+          : 'Added $count suggested ${count == 1 ? decor.noun : decor.nouns}. Tap one to keep or dismiss it.')));
     } catch (error) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_friendly(error))));
     }
@@ -354,6 +356,8 @@ class _MindMapPageState extends State<MindMapPage> {
     final links = _c.profileLinks;
     _ensurePositions(entries);
     final kids = _c.isKids;
+    final themeId = _c.spaceTheme.id;
+    final decor = KidsDecor.of(themeId);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final ideas = _c.profileIdeas;
@@ -385,13 +389,14 @@ class _MindMapPageState extends State<MindMapPage> {
       bindings: {const SingleActivator(LogicalKeyboardKey.escape): () => _select(null)},
       child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: Text(kids ? 'Star map' : 'Mind map',
+          if (kids) ...[SpaceArt.of(themeId, ArtRole.hero, size: 40), const SizedBox(width: 10)],
+          Expanded(child: Text(kids ? decor.mapName : 'Mind map',
               style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800))),
           if (!narrow) toolbar,
         ]),
         if (narrow) Padding(padding: const EdgeInsets.only(top: 8), child: toolbar),
         const SizedBox(height: 8),
-        Text(kids ? 'Drag your stories around and connect them like stars. Tap "New ideas" to make idea stars!'
+        Text(kids ? 'Drag your stories around and connect them like ${decor.nouns}. Tap "New ideas" to make idea ${decor.nouns}!'
             : 'Drag cards to arrange entries. Tap a card to edit it. Use Ideas to get Gemini suggestions from related entries.'),
         const SizedBox(height: 4),
         Text(narrow
@@ -414,7 +419,9 @@ class _MindMapPageState extends State<MindMapPage> {
                 ])),
           viewControls,
         ]),
-        Expanded(child: Card(clipBehavior: Clip.antiAlias, child: entries.isEmpty
+        Expanded(child: Card(clipBehavior: Clip.antiAlias, color: kids ? Colors.transparent : null, child: Stack(children: [
+          if (kids) Positioned.fill(child: RepaintBoundary(child: CustomPaint(painter: MapScenePainter(themeId)))),
+          Positioned.fill(child: entries.isEmpty
           ? Center(child: Text(kids ? 'Tell a story to see it here!' : 'Create some entries to see them here.'))
           : LayoutBuilder(builder: (context, constraints) {
               _viewport = constraints.biggest;
@@ -435,7 +442,7 @@ class _MindMapPageState extends State<MindMapPage> {
                   Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _LinksPainter(
                       _positions, links, scheme.primary, scheme.onSurface,
                       labelBackground: scheme.surface, selectedId: _selectedId,
-                      ideas: ideas, ideaColor: scheme.tertiary)))),
+                      ideas: ideas, ideaColor: scheme.tertiary, endDots: kids)))),
                   ...entries.map((entry) {
                     final point = _positions[entry.id] ?? Offset.zero;
                     final count = links.where((l) => l.fromId == entry.id || l.toId == entry.id).length;
@@ -446,6 +453,7 @@ class _MindMapPageState extends State<MindMapPage> {
                       child: _EntryNode(
                         entry: entry,
                         kids: kids,
+                        themeId: themeId,
                         connections: count,
                         selected: entry.id == _selectedId,
                         dimmed: _selectedId != null && entry.id != _selectedId &&
@@ -467,13 +475,14 @@ class _MindMapPageState extends State<MindMapPage> {
                       child: GestureDetector(
                         onPanUpdate: (detail) => setState(() => _positions[idea.id] = _clamp(point + detail.delta)),
                         onTap: () => _openIdea(idea),
-                        child: _IdeaNode(idea: idea, kids: kids),
+                        child: _IdeaNode(idea: idea, kids: kids, themeId: themeId),
                       ),
                     );
                   }),
                 ])),
               );
-            }))),
+            })),
+        ]))),
       ])),
     );
   }
@@ -532,10 +541,11 @@ class _ConnectDialogState extends State<_ConnectDialog> {
 
 /// A saved entry card: draggable, tap (or Enter) to edit, focus to select.
 class _EntryNode extends StatelessWidget {
-  const _EntryNode({required this.entry, required this.kids, required this.connections, required this.selected,
+  const _EntryNode({required this.entry, required this.kids, this.themeId = 'space', required this.connections, required this.selected,
       required this.dimmed, required this.onTap, required this.onFocused, required this.onDrag, required this.onDragEnd});
   final JournalEntry entry;
   final bool kids;
+  final String themeId;
   final int connections;
   final bool selected;
   final bool dimmed;
@@ -576,13 +586,17 @@ class _EntryNode extends StatelessWidget {
                   borderRadius: BorderRadius.circular(kids ? 34 : 14),
                   boxShadow: [BoxShadow(color: selected ? scheme.primary.withValues(alpha: .35) : const Color(0x15000000),
                       blurRadius: selected ? 14 : 8, offset: const Offset(0, 3))]),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Text(entry.title, overflow: TextOverflow.ellipsis, maxLines: 2,
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, height: 1.15, color: scheme.onPrimaryContainer)),
-                  const SizedBox(height: 2),
-                  Text(entry.tags.isNotEmpty ? entry.tags.first : noun,
-                    overflow: TextOverflow.ellipsis, maxLines: 1,
-                    style: TextStyle(fontSize: 11, color: scheme.onPrimaryContainer)),
+                child: Row(children: [
+                  // Kids: each story is a little themed sticker (star, starfish, flower).
+                  if (kids) ...[SpaceArt.of(themeId, ArtRole.sticker, size: 34), const SizedBox(width: 8)],
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Text(entry.title, overflow: TextOverflow.ellipsis, maxLines: 2,
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, height: 1.15, color: scheme.onPrimaryContainer)),
+                    const SizedBox(height: 2),
+                    Text(entry.tags.isNotEmpty ? entry.tags.first : noun,
+                      overflow: TextOverflow.ellipsis, maxLines: 1,
+                      style: TextStyle(fontSize: 11, color: scheme.onPrimaryContainer)),
+                  ])),
                 ]),
               ),
             ),
@@ -595,9 +609,10 @@ class _EntryNode extends StatelessWidget {
 
 /// A suggested (not yet saved) star: lighter, outlined, with an idea icon.
 class _IdeaNode extends StatelessWidget {
-  const _IdeaNode({required this.idea, required this.kids});
+  const _IdeaNode({required this.idea, required this.kids, this.themeId = 'space'});
   final StarIdea idea;
   final bool kids;
+  final String themeId;
 
   @override
   Widget build(BuildContext context) {
@@ -613,8 +628,11 @@ class _IdeaNode extends StatelessWidget {
           border: Border.all(color: scheme.tertiary.withValues(alpha: .8), width: 1.5),
           borderRadius: BorderRadius.circular(kids ? 34 : 14)),
         child: Row(children: [
-          Icon(idea.isRecommendation ? Icons.recommend_outlined : Icons.lightbulb_outline,
-              size: 20, color: scheme.onTertiaryContainer),
+          if (kids)
+            SpaceArt.of(themeId, ArtRole.calm, size: 28)
+          else
+            Icon(idea.isRecommendation ? Icons.recommend_outlined : Icons.lightbulb_outline,
+                size: 20, color: scheme.onTertiaryContainer),
           const SizedBox(width: 8),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
             Text(idea.title, overflow: TextOverflow.ellipsis, maxLines: 1,
@@ -630,9 +648,10 @@ class _IdeaNode extends StatelessWidget {
 
 class _LinksPainter extends CustomPainter {
   const _LinksPainter(this.positions, this.links, this.lineColor, this.labelColor,
-      {required this.labelBackground, this.selectedId, this.ideas = const [], this.ideaColor = const Color(0xFF888888)});
+      {required this.labelBackground, this.selectedId, this.ideas = const [], this.ideaColor = const Color(0xFF888888), this.endDots = false});
   final List<StarIdea> ideas;
   final Color ideaColor;
+  final bool endDots;
   final Color lineColor;
   final Color labelColor;
   final Color labelBackground;
@@ -658,6 +677,9 @@ class _LinksPainter extends CustomPainter {
         ..strokeWidth = emphasized ? 4 : 2.4
         ..strokeCap = StrokeCap.round;
       canvas.drawLine(a, b, paint);
+      if (endDots) {
+        for (final end in [a, b]) { canvas.drawCircle(end, emphasized ? 6 : 4.5, Paint()..color = paint.color); }
+      }
       final midpoint = Offset((a.dx + b.dx) / 2, (a.dy + b.dy) / 2);
       final textPainter = TextPainter(
         text: TextSpan(text: link.label, style: TextStyle(fontSize: 10.5,

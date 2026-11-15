@@ -48,19 +48,26 @@ SpaceTheme resolveTheme(String? themeId, String kind) {
   return options.firstWhere((t) => t.id == themeId, orElse: () => options.first);
 }
 
+const kidsFont = 'Nunito';
+
 ThemeData buildTheme(SpaceTheme t) {
   final dark = t.brightness == Brightness.dark;
   final scheme = ColorScheme.fromSeed(seedColor: t.seed, brightness: t.brightness);
   final kids = t.kind == 'kids';
   final radius = kids ? 26.0 : 14.0;
-  final base = ThemeData(useMaterial3: true, colorScheme: scheme, brightness: t.brightness);
+  final plain = ThemeData(useMaterial3: true, colorScheme: scheme, brightness: t.brightness);
+  // Kids get a round, friendly, easy-to-read font. Bundled, so it looks the same on every device.
+  final textTheme = kids
+      ? plain.textTheme.apply(fontFamily: kidsFont, fontFamilyFallback: const ['Arial Rounded MT Bold'])
+      : plain.textTheme;
+  final base = plain.copyWith(textTheme: textTheme);
   return base.copyWith(
     scaffoldBackgroundColor: t.background,
     appBarTheme: AppBarTheme(backgroundColor: t.background, surfaceTintColor: Colors.transparent),
     navigationRailTheme: NavigationRailThemeData(backgroundColor: t.background),
     cardTheme: CardThemeData(
       // Slightly see-through on dark so the night sky glows behind cards.
-      color: dark ? const Color(0xE61A1D4A) : Colors.white,
+      color: dark ? const Color(0xE61A1D4A) : const Color(0xF2FFFFFF),
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(radius),

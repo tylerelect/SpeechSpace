@@ -102,7 +102,7 @@ class _CalendarPageState extends State<CalendarPage> {
     return Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 980), child: ListView(
       padding: const EdgeInsets.all(22), children: [
         Row(children: [
-          if (copy.isKids) ...[const SpaceArt(SpaceArtKind.planet, size: 46), const SizedBox(width: 10)],
+          if (copy.isKids) ...[SpaceArt.of(_c.spaceTheme.id, ArtRole.big, size: 46), const SizedBox(width: 10)],
           Expanded(child: Text(copy.navCalendar, style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800))),
           FilledButton.tonalIcon(onPressed: () => openEntryEditor(context, _c, date: _view == CalendarView.day ? _date : DateTime.now()),
               icon: const Icon(Icons.add), label: Text(copy.isKids ? 'Story' : 'Entry')),
@@ -134,12 +134,12 @@ class _CalendarPageState extends State<CalendarPage> {
         if (data == null)
           const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator()))
         else ...[
-          _Counts(data: data, kids: copy.isKids),
+          _Counts(data: data, kids: copy.isKids, themeId: _c.spaceTheme.id),
           const SizedBox(height: 12),
           switch (_view) {
             CalendarView.day => const SizedBox.shrink(),
             CalendarView.week => _WeekStrip(data: data, onDay: (d) => _go(CalendarView.day, d)),
-            CalendarView.month => _MonthGrid(data: data, selected: _date, kids: copy.isKids, onDay: (d) => _go(CalendarView.day, d)),
+            CalendarView.month => _MonthGrid(data: data, selected: _date, kids: copy.isKids, themeId: _c.spaceTheme.id, onDay: (d) => _go(CalendarView.day, d)),
             CalendarView.year => _YearGrid(data: data, onMonth: (m) => _go(CalendarView.month, m)),
           },
           const SizedBox(height: 14),
@@ -157,13 +157,13 @@ class _CalendarPageState extends State<CalendarPage> {
             const SizedBox(height: 8),
             if (data.entries.isEmpty)
               Card(child: Padding(padding: const EdgeInsets.all(18), child: Row(children: [
-                if (copy.isKids) ...[const SpaceArt(SpaceArtKind.moon, size: 52), const SizedBox(width: 14)],
+                if (copy.isKids) ...[SpaceArt.of(_c.spaceTheme.id, ArtRole.calm, size: 52), const SizedBox(width: 14)],
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('No ${copy.entryNounPlural.toLowerCase()} in this ${_view.wire}.'),
                   if (copy.isKids) Text('Quiet in space! Tap + Story to add one.', style: theme.textTheme.bodySmall),
                 ])),
               ]))),
-            ...data.entries.map((e) => MemoryTile(entry: e, kids: copy.isKids,
+            ...data.entries.map((e) => MemoryTile(entry: e, kids: copy.isKids, themeId: _c.spaceTheme.id,
                 onTap: () => openEntryEditor(context, _c, entry: e))),
             if (data.truncated) Padding(padding: const EdgeInsets.only(top: 6),
                 child: Text('Partial list: showing the newest ${data.returnedCount} of ${data.entryCount}.',
@@ -177,19 +177,19 @@ class _CalendarPageState extends State<CalendarPage> {
 }
 
 class _Counts extends StatelessWidget {
-  const _Counts({required this.data, required this.kids});
+  const _Counts({required this.data, required this.kids, this.themeId = 'space'});
   final CalendarData data;
   final bool kids;
-
-  // Kids get a different sticker color per stat so the row isn't three identical boxes.
-  static const _accents = [Color(0xFFFFD23F), Color(0xFFFF8FAB), Color(0xFF7DE2D1)];
+  final String themeId;
 
   @override
   Widget build(BuildContext context) {
+    // Kids get a different sticker color per stat so the row isn't three identical boxes.
+    final accents = KidsDecor.of(themeId).accents;
     final items = [
-      (Icons.book_outlined, SpaceArtKind.star, '${data.entryCount}', kids ? 'Stories' : 'Entries'),
-      (Icons.calendar_today_outlined, SpaceArtKind.planet, '${data.activeDays}', 'Active days'),
-      (Icons.flag_outlined, SpaceArtKind.rocket, '${data.milestoneCount}', 'Milestones'),
+      (Icons.book_outlined, artFor(themeId, ArtRole.sticker), '${data.entryCount}', kids ? 'Stories' : 'Entries'),
+      (Icons.calendar_today_outlined, artFor(themeId, ArtRole.big), '${data.activeDays}', 'Active days'),
+      (Icons.flag_outlined, artFor(themeId, ArtRole.hero), '${data.milestoneCount}', 'Milestones'),
     ];
     return LayoutBuilder(builder: (context, constraints) {
       // On phones three side-by-side "icon | number + label" tiles don't fit; stack them instead.
@@ -198,7 +198,7 @@ class _Counts extends StatelessWidget {
         for (var i = 0; i < items.length; i++) ...[
           if (i > 0) const SizedBox(width: 8),
           Expanded(child: _CountTile(icon: items[i].$1, art: items[i].$2, value: items[i].$3, label: items[i].$4,
-              accent: kids ? _accents[i] : null, compact: compact)),
+              accent: kids ? accents[i] : null, compact: compact)),
         ],
       ]));
     });
@@ -281,10 +281,11 @@ class _WeekStrip extends StatelessWidget {
 }
 
 class _MonthGrid extends StatelessWidget {
-  const _MonthGrid({required this.data, required this.selected, required this.onDay, this.kids = false});
+  const _MonthGrid({required this.data, required this.selected, required this.onDay, this.kids = false, this.themeId = 'space'});
   final CalendarData data;
   final DateTime selected;
   final bool kids;
+  final String themeId;
   final ValueChanged<DateTime> onDay;
 
   @override
@@ -295,7 +296,8 @@ class _MonthGrid extends StatelessWidget {
     final offset = first.weekday - 1; // Monday-first
     final slots = ((offset + days + 6) ~/ 7) * 7;
     final now = DateTime.now();
-    const gold = Color(0xFFFFD23F);
+    final decor = KidsDecor.of(themeId);
+    final gold = decor.markerColor;
     return Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(children: [
       Row(children: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
           .map((n) => Expanded(child: Center(child: Text(n, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))))).toList()),
@@ -328,14 +330,14 @@ class _MonthGrid extends StatelessWidget {
                 Text('$dayNum', style: TextStyle(fontWeight: isSelected || isToday ? FontWeight.bold : FontWeight.normal)),
                 if (count != null) Row(mainAxisSize: MainAxisSize.min, children: [
                   if (kids)
-                    // A gold star for every day with a story.
-                    const Padding(padding: EdgeInsets.only(top: 2), child: Icon(Icons.star_rounded, size: 15, color: gold))
+                    // A themed sticker (star, drop, sun) for every day with a story.
+                    Padding(padding: const EdgeInsets.only(top: 2), child: Icon(decor.marker, size: 15, color: gold))
                   else
                     Container(margin: const EdgeInsets.only(top: 4), width: 7, height: 7,
                         decoration: BoxDecoration(color: scheme.primary, shape: BoxShape.circle)),
                   if (count.milestoneCount > 0) Padding(padding: const EdgeInsets.only(left: 2, top: 3),
-                      child: Icon(kids ? Icons.rocket_launch_rounded : Icons.flag, size: kids ? 12 : 11,
-                          color: kids ? const Color(0xFFFF8FAB) : scheme.primary)),
+                      child: Icon(kids ? decor.milestone : Icons.flag, size: kids ? 12 : 11,
+                          color: kids ? decor.milestoneColor : scheme.primary)),
                 ]),
               ])))),
           );
