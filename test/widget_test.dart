@@ -147,7 +147,9 @@ void main() {
     final lead = startingPrompts(controller.profile, DateTime.now()).first;
     expect(lead.label, question); // the Today question is always the first chip
     await tester.tap(find.text(question));
-    await tester.pump();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Type answer'));
+    await tester.pumpAndSettle();
     final body = find.widgetWithText(TextField, 'What happened?');
     expect(tester.widget<TextField>(body).controller!.text, lead.starter);
     expect(find.text(question), findsNothing); // used questions go away
@@ -336,7 +338,10 @@ void main() {
     expect(find.text('Who was there?'), findsOneWidget);
 
     await tester.tap(find.text('Who was there?'));
-    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('Record answer'), findsOneWidget);
+    await tester.tap(find.text('Type answer'));
+    await tester.pumpAndSettle();
     expect(tester.widget<TextField>(body).controller!.text, 'Today I built a big sandcastle. I was with ');
     expect(find.text('Who was there?'), findsNothing); // used prompts go away
   });
@@ -373,7 +378,9 @@ void main() {
     expect(find.text('Tell more about the sandcastle'), findsOneWidget);
 
     await tester.tap(find.text('Tell more about the sandcastle'));
-    await tester.pump();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Type answer'));
+    await tester.pumpAndSettle();
     expect(tester.widget<TextField>(body).controller!.text, 'Today I built a big sandcastle. The sandcastle was ');
     await tester.pump(const Duration(seconds: 2)); // let the debounced refresh finish
     await tester.pump(const Duration(milliseconds: 400));

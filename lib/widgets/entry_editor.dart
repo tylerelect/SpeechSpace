@@ -104,11 +104,33 @@ class _EntryEditorState extends State<EntryEditor> {
     return [...ai, ...local.where((p) => !labels.contains(p.label.toLowerCase()))].take(4).toList();
   }
 
-  void _usePrompt(WritingPrompt prompt) {
-    final text = appendStarter(_body.text, prompt.starter);
+  Future<void> _usePrompt(WritingPrompt prompt) async {
+    _bodyFocus.unfocus();
+    final response = await showDialog<String>(context: context, builder: (dialogContext) {
+      var recording = false;
+      return StatefulBuilder(builder: (context, setDialogState) => AlertDialog(
+        title: Text(prompt.label),
+        content: SingleChildScrollView(child: recording
+          ? VoiceCapture(
+              prompt: 'Record your answer',
+              recorderFactory: widget.voiceRecorderFactory,
+              onRecordingChanged: widget.controller.sound.onRecordingChanged,
+              onTranscribe: widget.controller.transcribe,
+              onTranscript: (text) => Navigator.of(dialogContext).pop(text),
+            )
+          : const Text('How would you like to add your answer?')),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+          if (!recording) TextButton(onPressed: () => setDialogState(() => recording = true), child: const Text('Record answer')),
+          if (!recording) FilledButton(onPressed: () => Navigator.of(dialogContext).pop(''), child: const Text('Type answer')),
+        ],
+      ));
+    });
+    if (!mounted || response == null) return;
+    final text = '${appendStarter(_body.text, prompt.starter)}$response';
     _usedPrompts.add(prompt.id);
     _body.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
-    _bodyFocus.requestFocus();
+    if (response.isEmpty) _bodyFocus.requestFocus();
     setState(() {});
   }
 

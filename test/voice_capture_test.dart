@@ -94,7 +94,43 @@ Future<void> stopRecording(WidgetTester tester) async {
   await tester.pump();
 }
 
+class _TranscribingDemo extends DemoRepository {
+  @override
+  Future<String> transcribe(Uint8List wav) async => 'my friend Alex';
+}
+
 void main() {
+  testWidgets('a story prompt can record and append the transcribed answer', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(1000, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final controller = AppController(_TranscribingDemo());
+    await controller.initialize();
+    controller.enterApp('demo-alex');
+    final recorder = FakeRecorder();
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: EntryEditor(
+      controller: controller, initialDate: DateTime.now(),
+      voiceRecorderFactory: () => recorder,
+    ))));
+    await tester.enterText(find.widgetWithText(TextField, 'What happened?'), 'Today I built a big sandcastle');
+    await tester.pump();
+    await tester.tap(find.text('Who was there?'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Record answer'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.descendant(of: find.byType(AlertDialog), matching: find.byType(Checkbox)));
+    await tester.pump();
+    await tester.tap(find.descendant(of: find.byType(AlertDialog), matching: find.text('Record')));
+    await tester.pump();
+    await tester.pump();
+    recorder.add(100);
+    await tester.pump();
+    await tester.tap(find.text('Stop'));
+    await tester.pumpAndSettle();
+    final body = tester.widget<TextField>(find.widgetWithText(TextField, 'What happened?'));
+    expect(body.controller!.text, 'Today I built a big sandcastle. I was with my friend Alex');
+  });
   testWidgets('guardian approval is required before Record is enabled', (tester) async {
     final recorder = FakeRecorder();
     final h = Harness();
