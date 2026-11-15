@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/calendar.dart';
 import '../models/models.dart';
 import '../services/app_controller.dart';
+import '../services/repository.dart' show ApiException;
 import '../widgets/entry_editor.dart';
 import '../widgets/project_filter.dart';
 import 'today_page.dart';
@@ -18,8 +19,10 @@ class CalendarPage extends StatefulWidget {
 }
 
 class _CalendarPageState extends State<CalendarPage> {
-  CalendarView _view = CalendarView.month;
-  DateTime _date = DateTime.now();
+  // View and date live in the controller so navigation survives tab switches
+  // and other screens (the Activity heat map) can open a specific day.
+  CalendarView get _view => _c.calendarView;
+  DateTime get _date => _c.calendarDate;
 
   // Loaded data is tagged with the request it answers; anything else is stale.
   String? _loadedKey;
@@ -36,15 +39,18 @@ class _CalendarPageState extends State<CalendarPage> {
 
   String get _key {
     final period = CalendarPeriod.of(_view, _date);
-    return [_c.selectedProfileId, _c.selectedProjectId, _view.wire, isoDay(period.start), _c.revision].join('|');
+    return [_c.selectedProfileId, _c.calendarProjectId, _view.wire, isoDay(period.start), _c.revision].join('|');
   }
 
-  void _ensureLoaded() {
+  void _ensureLoaded({bool force = false}) {
     final key = _key;
-    if (key == _loadedKey || key == _loadingKey || _c.selectedProfileId == null) return;
+    if (!force && (key == _loadedKey || key == _loadingKey)) return;
+    final profileId = _c.selectedProfileId;
+    if (profileId == null) return;
     _loadingKey = key;
     final view = _view;
     final date = _date;
+    final projectId = _c.calendarProjectId;
     _c.calendar(view, date).then((data) {
       if (!mounted || _loadingKey != key) return;
       setState(() { _data = data; _loadedKey = key; _loadError = null; _loadingKey = null; });
@@ -52,16 +58,19 @@ class _CalendarPageState extends State<CalendarPage> {
       if (!mounted || _loadingKey != key) return;
       // Keep saved entries visible: fall back to the entries already loaded.
       setState(() {
-        _data = CalendarData.compute(profileId: _c.selectedProfileId!, view: view, date: date,
-            projectId: _c.selectedProjectId, allEntries: _c.entries);
+        _data = CalendarData.compute(profileId: profileId, view: view, date: date,
+            projectId: projectId, allEntries: _c.entries);
         _loadedKey = key;
         _loadingKey = null;
-        _loadError = error.toString();
+        _loadError = calendarErrorMessage(error, loading: true);
       });
     });
   }
 
-  void _go(CalendarView view, DateTime date) => setState(() { _view = view; _date = date; });
+  void _retryLoad() => setState(() => _ensureLoaded(force: true));
+
+  // The controller notifies listeners, and the shell rebuilds this page.
+  void _go(CalendarView view, DateTime date) => _c.setCalendar(view, date);
 
   Future<void> _generateSummary() async {
     final key = _key;
@@ -72,19 +81,10 @@ class _CalendarPageState extends State<CalendarPage> {
       setState(() => _summary = summary);
     } catch (error) {
       if (!mounted || _summaryKey != key) return;
-      setState(() => _summaryError = _friendly(error));
+      setState(() => _summaryError = calendarErrorMessage(error));
     } finally {
       if (mounted && _summaryKey == key) setState(() => _summaryLoading = false);
     }
-  }
-
-  String _friendly(Object error) {
-    final text = error.toString().replaceFirst('Bad state: ', '');
-    if (text.contains('GEMINI_API_KEY') || text.contains('not configured')) return 'Recaps need Gemini to be set up on the backend.';
-    if (text.contains('SocketException') || text.contains('ClientException') || text.contains('TimeoutException')) {
-      return 'Could not reach the backend. Your entries are still shown below.';
-    }
-    return text;
   }
 
   @override
@@ -120,9 +120,13 @@ class _CalendarPageState extends State<CalendarPage> {
           TextButton(onPressed: () => _go(_view, DateTime.now()), child: const Text('Today')),
           IconButton(tooltip: 'Next', onPressed: () => _go(_view, shiftDate(_view, _date, 1)), icon: const Icon(Icons.chevron_right)),
         ]),
-        if (_loadError != null && data != null) Padding(padding: const EdgeInsets.only(bottom: 8),
-            child: Text('Calendar service unavailable ($_loadError). Showing entries already loaded.',
-                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error))),
+        if (_loadError != null && data != null) Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
+          Icon(Icons.cloud_off_outlined, size: 18, color: theme.colorScheme.error),
+          const SizedBox(width: 8),
+          Expanded(child: Text('$_loadError Showing entries already loaded.',
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error))),
+          TextButton(onPressed: _retryLoad, child: const Text('Retry')),
+        ])),
         if (data == null)
           const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator()))
         else ...[
@@ -153,7 +157,8 @@ class _CalendarPageState extends State<CalendarPage> {
             ...data.entries.map((e) => MemoryTile(entry: e, kids: copy.isKids,
                 onTap: () => openEntryEditor(context, _c, entry: e))),
             if (data.truncated) Padding(padding: const EdgeInsets.only(top: 6),
-                child: Text('Showing the newest ${data.entries.length} of ${data.entryCount}.', style: theme.textTheme.bodySmall)),
+                child: Text('Partial list: showing the newest ${data.returnedCount} of ${data.entryCount}.',
+                    key: const ValueKey('calendar-truncated'), style: theme.textTheme.bodySmall)),
           ],
         ],
         const SizedBox(height: 24),
@@ -202,6 +207,7 @@ class _WeekStrip extends StatelessWidget {
         final day = DateTime(start.year, start.month, start.day + i);
         final count = data.countFor(day);
         return Expanded(child: InkWell(
+          key: ValueKey('week-day-${isoDay(day)}'),
           borderRadius: BorderRadius.circular(12),
           onTap: () => onDay(day),
           child: Container(
@@ -254,6 +260,7 @@ class _MonthGrid extends StatelessWidget {
           final count = data.countFor(date);
           final isSelected = date.year == selected.year && date.month == selected.month && date.day == selected.day;
           return InkWell(
+            key: ValueKey('month-day-${isoDay(date)}'),
             onTap: () => onDay(date),
             borderRadius: BorderRadius.circular(12),
             child: Container(decoration: BoxDecoration(
@@ -297,6 +304,7 @@ class _YearGrid extends StatelessWidget {
           return Card(
             color: entries > 0 ? scheme.primaryContainer : null,
             child: InkWell(
+              key: ValueKey('year-month-$m'),
               borderRadius: BorderRadius.circular(16),
               onTap: () => onMonth(DateTime(year, m)),
               child: Padding(padding: const EdgeInsets.all(10), child: Column(
@@ -335,7 +343,7 @@ class _SummaryCard extends StatelessWidget {
       Row(children: [
         Icon(Icons.auto_awesome, color: theme.colorScheme.tertiary),
         const SizedBox(width: 8),
-        Expanded(child: Text('${view.label} recap', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700))),
+        Expanded(child: Text(summaryTitle(view), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700))),
         if (loading)
           const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5))
         else
@@ -373,9 +381,39 @@ class _SummaryCard extends StatelessWidget {
           for (final m in s.milestones) Padding(padding: const EdgeInsets.only(top: 3), child: Text('⚑ $m')),
         ],
         const SizedBox(height: 10),
-        Text('${s.entryCount} entries • ${s.activeDays} active days • ${s.milestoneCount} milestones. '
-            'A recap of what was written, not an assessment. Not saved.', style: theme.textTheme.bodySmall),
+        // Factual counts come from saved entries, kept apart from the generated text.
+        Text('Saved data: ${s.entryCount} ${s.entryCount == 1 ? 'entry' : 'entries'} • ${s.activeDays} active '
+            '${s.activeDays == 1 ? 'day' : 'days'} • ${s.milestoneCount} marked '
+            '${s.milestoneCount == 1 ? 'milestone' : 'milestones'}'
+            '${s.generated ? ' • ${s.analyzedEntries} analyzed' : ''}.',
+            key: const ValueKey('summary-counts'), style: theme.textTheme.bodySmall),
+        Text('A recap of what was written, not an assessment. Not saved.', style: theme.textTheme.bodySmall),
       ],
     ])));
   }
+}
+
+/// Short, recoverable messages for calendar and recap failures. Saved entries
+/// stay visible in every case.
+String calendarErrorMessage(Object error, {bool loading = false}) {
+  if (error is ApiException) {
+    switch (error.statusCode) {
+      case 503:
+        return loading ? 'The calendar service is not available right now.'
+            : 'Recaps need Gemini to be set up on the backend (GEMINI_API_KEY).';
+      case 502:
+        return 'Gemini could not create a recap right now. Try again in a moment.';
+      case 401:
+        return 'The app is not authorized with the backend (check DEV_API_TOKEN).';
+      case 504:
+        return 'The backend took too long to answer. Try again.';
+    }
+    return error.message;
+  }
+  final text = error.toString().replaceFirst('Bad state: ', '');
+  if (text.contains('SocketException') || text.contains('ClientException') || text.contains('TimeoutException') ||
+      text.contains('Failed host lookup') || text.contains('XMLHttpRequest')) {
+    return 'Could not reach the backend. You seem to be offline.';
+  }
+  return text;
 }

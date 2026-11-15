@@ -87,8 +87,8 @@ class SettingsPage extends StatelessWidget {
         Text('Integrations', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
         _setting(Icons.storage_outlined, 'MongoDB Atlas', controller.demo ? 'Not connected • memory-only demo' : 'Connected through backend API'),
-        _setting(Icons.auto_awesome_outlined, 'Gemini Flash', 'Optional backend text analysis • configure GEMINI_API_KEY and GEMINI_MODEL'),
-        _setting(Icons.mic_none_outlined, 'Voice transcription', 'Model undecided • configure STT_ENDPOINT_URL for an external speech service'),
+        _setting(Icons.auto_awesome_outlined, 'Gemini Flash', 'Optional: highlights, calendar recaps, ideas and writing prompts • configured on the backend (GEMINI_API_KEY)'),
+        _setting(Icons.mic_none_outlined, 'Voice transcription', 'Configured on the backend: STT_ENDPOINT_URL, or the ElevenLabs adapter (STT_PROVIDER=elevenlabs)'),
       ]))),
       const SizedBox(height: 12),
       Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -173,18 +173,7 @@ class _ProjectsCard extends StatelessWidget {
   }
 
   Future<void> _add(BuildContext context) async {
-    final name = TextEditingController();
-    final result = await showDialog<String>(context: context, builder: (ctx) => AlertDialog(
-      title: const Text('New project'),
-      content: TextField(controller: name, autofocus: true, maxLength: 60,
-          decoration: const InputDecoration(labelText: 'Project name'),
-          onSubmitted: (v) => Navigator.pop(ctx, v)),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-        FilledButton(onPressed: () => Navigator.pop(ctx, name.text), child: const Text('Create')),
-      ],
-    ));
-    name.dispose();
+    final result = await showDialog<String>(context: context, builder: (_) => const _ProjectNameDialog());
     if (result == null || result.trim().isEmpty || !context.mounted) return;
     try { await controller.addProject(result); } catch (e) { if (context.mounted) _snack(context, e); }
   }
@@ -226,4 +215,34 @@ class _ProjectsCard extends StatelessWidget {
       OutlinedButton.icon(onPressed: () => _add(context), icon: const Icon(Icons.create_new_folder_outlined), label: const Text('New project')),
     ])));
   }
+}
+
+/// Owns its text controller so it is disposed only after the dialog (and its
+/// exit animation) is gone.
+class _ProjectNameDialog extends StatefulWidget {
+  const _ProjectNameDialog();
+  @override
+  State<_ProjectNameDialog> createState() => _ProjectNameDialogState();
+}
+
+class _ProjectNameDialogState extends State<_ProjectNameDialog> {
+  final _name = TextEditingController();
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('New project'),
+        content: TextField(controller: _name, autofocus: true, maxLength: 60,
+            decoration: const InputDecoration(labelText: 'Project name'),
+            onSubmitted: (v) => Navigator.pop(context, v)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, _name.text), child: const Text('Create')),
+        ],
+      );
 }
