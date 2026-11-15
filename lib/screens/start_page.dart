@@ -21,7 +21,7 @@ class StartPage extends StatelessWidget {
     final profiles = controller.profiles;
     return Scaffold(body: SafeArea(child: Center(child: ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 760),
-      child: ListView(shrinkWrap: true, padding: const EdgeInsets.all(28), children: [
+      child: ListView(shrinkWrap: true, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 28), children: [
         Icon(Icons.rocket_launch_rounded, size: 56, color: theme.colorScheme.primary),
         const SizedBox(height: 14),
         Text(profiles.isEmpty ? 'Welcome to SpeechSpace' : 'Who\'s using SpeechSpace?',
@@ -38,10 +38,10 @@ class StartPage extends StatelessWidget {
         LayoutBuilder(builder: (context, constraints) {
           // Fit up to 3 cards per row; scale down on narrow screens.
           const maxPerRow = 3;
-          const spacing = 12.0;
+          const spacing = 8.0;
           final totalSpacing = spacing * (maxPerRow - 1);
           final cardWidth = ((constraints.maxWidth - totalSpacing) / maxPerRow).clamp(100.0, 170.0);
-          final cardHeight = cardWidth * 1.12;
+          final cardHeight = cardWidth * 1.30;
           return Wrap(alignment: WrapAlignment.center, spacing: spacing, runSpacing: spacing, children: [
             for (final p in profiles) _ProfileCard(profile: p, onTap: () => controller.enterApp(p.id), width: cardWidth, height: cardHeight),
             _NewProfileCard(onTap: () => _create(context), width: cardWidth, height: cardHeight),
@@ -69,7 +69,7 @@ class _ProfileCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(22),
         onTap: onTap,
-        child: FittedBox(fit: BoxFit.scaleDown, child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        child: Padding(padding: const EdgeInsets.all(8), child: FittedBox(fit: BoxFit.scaleDown, child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           CircleAvatar(radius: 34, backgroundColor: t.seed,
               child: Icon(profile.isKids ? Icons.rocket_launch_rounded : Icons.person_outline, size: 32, color: Colors.white)),
           const SizedBox(height: 14),
@@ -78,7 +78,7 @@ class _ProfileCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text('${profile.isKids ? 'Kids' : 'Adult'} • ${t.label}',
               style: TextStyle(color: dark ? Colors.white70 : Colors.black54)),
-        ])),
+        ]))),
       ),
     ));
   }
@@ -99,14 +99,14 @@ class _NewProfileCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(22),
         onTap: onTap,
-        child: FittedBox(fit: BoxFit.scaleDown, child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        child: Padding(padding: const EdgeInsets.all(8), child: FittedBox(fit: BoxFit.scaleDown, child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           CircleAvatar(radius: 34, backgroundColor: scheme.primaryContainer,
               child: Icon(Icons.add, size: 34, color: scheme.onPrimaryContainer)),
           const SizedBox(height: 14),
           const Text('New profile', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
           const SizedBox(height: 2),
           Text('Kids or Adult', style: TextStyle(color: scheme.onSurfaceVariant)),
-        ])),
+        ]))),
       ),
     ));
   }
