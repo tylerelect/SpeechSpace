@@ -19,6 +19,30 @@ Future<AppController> demoController() async {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  testWidgets('entry editor is full screen and only closes explicitly or via back', (tester) async {
+    final controller = await demoController();
+    controller.enterApp('demo-jordan');
+    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(
+      body: TextButton(onPressed: () => openEntryEditor(context, controller), child: const Text('Open editor')),
+    ))));
+    await tester.tap(find.text('Open editor'));
+    await tester.pumpAndSettle();
+    expect(find.byType(EntryEditor), findsOneWidget);
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(tester.getSize(find.byType(Scaffold).last), tester.view.physicalSize / tester.view.devicePixelRatio);
+    await tester.drag(find.byType(EntryEditor), const Offset(0, 400));
+    await tester.pumpAndSettle();
+    expect(find.byType(EntryEditor), findsOneWidget);
+    await tester.tap(find.byTooltip('Close'));
+    await tester.pumpAndSettle();
+    expect(find.byType(EntryEditor), findsNothing);
+    await tester.tap(find.text('Open editor'));
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(EntryEditor), findsNothing);
+  });
+
   testWidgets('launch shows the profile chooser; picking Alex opens Kids mode', (tester) async {
     final controller = await demoController();
     await tester.pumpWidget(SpeechSpaceApp(controller: controller));

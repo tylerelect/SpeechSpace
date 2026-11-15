@@ -14,22 +14,24 @@ import 'voice_capture.dart';
 Future<void> openEntryEditor(BuildContext context, AppController controller,
     {JournalEntry? entry, DateTime? date, StarIdea? suggestion, ValueChanged<JournalEntry>? onSaved}) async {
   if (controller.profile == null) return;
-  await showModalBottomSheet<void>(
+  await showGeneralDialog<void>(
     context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    showDragHandle: true,
-    builder: (_) => FractionallySizedBox(
-      heightFactor: .92,
-      child: EntryEditor(controller: controller, entry: entry, initialDate: date ?? DateTime.now(),
-          suggestion: suggestion, onSaved: onSaved),
+    barrierDismissible: false,
+    pageBuilder: (routeContext, _, _) => Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: Text(entry == null ? controller.copy.editorNewTitle : controller.copy.editorEditTitle),
+        actions: [IconButton(tooltip: 'Close', onPressed: () => Navigator.of(routeContext).pop(), icon: const Icon(Icons.close))],
+      ),
+      body: SafeArea(child: EntryEditor(controller: controller, entry: entry, initialDate: date ?? DateTime.now(),
+          suggestion: suggestion, onSaved: onSaved, showHeader: false)),
     ),
   );
 }
 
 class EntryEditor extends StatefulWidget {
   const EntryEditor({super.key, required this.controller, required this.initialDate, this.entry,
-      this.suggestion, this.onSaved, this.voiceRecorderFactory});
+      this.suggestion, this.onSaved, this.voiceRecorderFactory, this.showHeader = true});
   final AppController controller;
   /// Test hook for the microphone; defaults to the real recorder.
   final VoiceRecorder Function()? voiceRecorderFactory;
@@ -37,6 +39,7 @@ class EntryEditor extends StatefulWidget {
   final ValueChanged<JournalEntry>? onSaved;
   final JournalEntry? entry;
   final DateTime initialDate;
+  final bool showHeader;
 
   @override
   State<EntryEditor> createState() => _EntryEditorState();
@@ -231,9 +234,9 @@ class _EntryEditorState extends State<EntryEditor> {
     return Center(child: ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 760),
       child: Padding(
-        padding: EdgeInsets.fromLTRB(20, 4, 20, MediaQuery.viewInsetsOf(context).bottom + 14),
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
         child: ListView(children: [
-          Row(children: [
+          if (widget.showHeader) Row(children: [
             Expanded(child: Text(widget.entry == null ? copy.editorNewTitle : copy.editorEditTitle, style: theme.textTheme.headlineSmall)),
             IconButton(tooltip: 'Close', onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
           ]),

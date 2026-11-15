@@ -343,5 +343,27 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('Pinch to zoom • drag the background to pan • drag a card to move it'), findsOneWidget);
     });
+
+    testWidgets('zoomed-out cards allow panning and reactivate when zoomed in', (tester) async {
+      final c = await demo('demo-jordan');
+      await pumpMap(tester, c, size: const Size(390, 844));
+      final viewer = tester.widget<InteractiveViewer>(find.byType(InteractiveViewer));
+      expect(scale(tester), greaterThanOrEqualTo(.8));
+      final card = find.byKey(const ValueKey('demo-a1'));
+      bool ignored() => tester.widget<IgnorePointer>(find.descendant(of: card,
+        matching: find.byType(IgnorePointer)).first).ignoring;
+      expect(ignored(), isFalse);
+      viewer.transformationController!.value = Matrix4.diagonal3Values(.4, .4, .4);
+      await tester.pumpAndSettle();
+      expect(ignored(), isTrue);
+      expect(find.text('Overview: drag to move around. Zoom in to open or move cards.'), findsOneWidget);
+      final before = viewer.transformationController!.value.getTranslation().clone();
+      await tester.dragFrom(tester.getCenter(find.byType(InteractiveViewer)), const Offset(-50, -30));
+      await tester.pumpAndSettle();
+      expect(viewer.transformationController!.value.getTranslation(), isNot(before));
+      viewer.transformationController!.value = Matrix4.identity();
+      await tester.pumpAndSettle();
+      expect(ignored(), isFalse);
+    });
   });
 }

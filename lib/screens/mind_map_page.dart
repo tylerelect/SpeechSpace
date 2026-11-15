@@ -62,6 +62,19 @@ class _MindMapPageState extends State<MindMapPage> {
 
   static const _minScale = .25;
   static const _maxScale = 2.5;
+  static const _interactionScale = .65;
+  bool _panOnly = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _transform.addListener(_updateInteractionMode);
+  }
+
+  void _updateInteractionMode() {
+    final panOnly = _transform.value.getMaxScaleOnAxis() < _interactionScale;
+    if (panOnly != _panOnly && mounted) setState(() => _panOnly = panOnly);
+  }
 
   AppController get _c => widget.controller;
 
@@ -156,7 +169,7 @@ class _MindMapPageState extends State<MindMapPage> {
   // ---- Pan / zoom controls --------------------------------------------------
 
   /// Fits every card into the visible area. [maxScale] 1 = never enlarge.
-  void _fit({double maxScale = 1.5}) {
+  void _fit({double maxScale = 1.5, double minScale = _minScale}) {
     if (_positions.isEmpty || _viewport.isEmpty) {
       _transform.value = Matrix4.identity();
       return;
@@ -169,7 +182,7 @@ class _MindMapPageState extends State<MindMapPage> {
       first = false;
     }
     bounds = bounds.inflate(24);
-    final scale = math.min(_viewport.width / bounds.width, _viewport.height / bounds.height).clamp(_minScale, maxScale);
+    final scale = math.min(_viewport.width / bounds.width, _viewport.height / bounds.height).clamp(minScale, maxScale);
     final tx = (_viewport.width - bounds.width * scale) / 2 - bounds.left * scale;
     final ty = (_viewport.height - bounds.height * scale) / 2 - bounds.top * scale;
     _transform.value = Matrix4.diagonal3Values(scale, scale, scale)..setTranslationRaw(tx, ty, 0);
@@ -409,7 +422,7 @@ class _MindMapPageState extends State<MindMapPage> {
         Text(kids ? 'Drag your stories around and connect them like ${decor.nouns}. Tap "New ideas" to make idea ${decor.nouns}!'
             : 'Drag cards to arrange entries. Tap a card to edit it. Use Ideas to get Gemini suggestions from related entries.'),
         const SizedBox(height: 4),
-        Text(narrow
+        Text(_panOnly ? 'Overview: drag to move around. Zoom in to open or move cards.' : narrow
             ? 'Pinch to zoom • drag the background to pan • drag a card to move it'
             : 'Scroll or pinch to zoom • drag the background to pan • drag a card to move it • Esc clears the selection',
             key: const ValueKey('mindmap-hint'),
@@ -437,8 +450,8 @@ class _MindMapPageState extends State<MindMapPage> {
               _viewport = constraints.biggest;
               if (_needsFit) {
                 _needsFit = false;
-                // Shrink to fit large maps on first view; never enlarge automatically.
-                WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _fit(maxScale: 1); });
+                // Keep initial cards readable; the fit button remains available for an overview.
+                WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _fit(maxScale: 1, minScale: .8); });
               }
               return InteractiveViewer(
                 transformationController: _transform,
@@ -458,7 +471,7 @@ class _MindMapPageState extends State<MindMapPage> {
                       key: ValueKey(entry.id),
                       left: point.dx - mindMapNodeSize.width / 2,
                       top: point.dy - mindMapNodeSize.height / 2,
-                      child: _EntryNode(
+                      child: ExcludeFocus(excluding: _panOnly, child: ExcludeSemantics(excluding: _panOnly, child: IgnorePointer(ignoring: _panOnly, child: _EntryNode(
                         entry: entry,
                         kids: kids,
                         themeId: themeId,
@@ -469,7 +482,7 @@ class _MindMapPageState extends State<MindMapPage> {
                         onFocused: () => _select(entry.id),
                         onDrag: (delta) => setState(() => _positions[entry.id] = _clamp(point + delta)),
                         onDragEnd: _saveLayout,
-                      ),
+                      )))),
                     );
                   }),
                   ...ideas.map((idea) {
@@ -478,11 +491,11 @@ class _MindMapPageState extends State<MindMapPage> {
                       key: ValueKey(idea.id),
                       left: point.dx - mindMapNodeSize.width / 2,
                       top: point.dy - mindMapNodeSize.height / 2,
-                      child: GestureDetector(
+                      child: ExcludeSemantics(excluding: _panOnly, child: IgnorePointer(ignoring: _panOnly, child: GestureDetector(
                         onPanUpdate: (detail) => setState(() => _positions[idea.id] = _clamp(point + detail.delta)),
                         onTap: () => _openIdea(idea),
                         child: _IdeaNode(idea: idea, kids: kids, themeId: themeId),
-                      ),
+                      ))),
                     );
                   }),
                 ])),

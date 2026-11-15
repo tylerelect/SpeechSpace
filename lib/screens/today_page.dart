@@ -61,9 +61,9 @@ class TodayPage extends StatelessWidget {
         Text(copy.subtitle(name), style: theme.textTheme.bodyLarge),
         const SizedBox(height: 20),
         // Adults see their numbers first; kids see the big mission card first.
-        if (!copy.isKids) ...[Wrap(spacing: 12, runSpacing: 12, children: metrics), const SizedBox(height: 16)],
+        if (!copy.isKids) ...[_MetricGrid(metrics: metrics), const SizedBox(height: 16)],
         prompt,
-        if (copy.isKids) ...[const SizedBox(height: 16), Wrap(spacing: 12, runSpacing: 12, children: metrics)],
+        if (copy.isKids) ...[const SizedBox(height: 16), _MetricGrid(metrics: metrics)],
         const SizedBox(height: 24),
         Text(copy.todaySection, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
@@ -123,6 +123,21 @@ class _KidsMission extends StatelessWidget {
   }
 }
 
+class _MetricGrid extends StatelessWidget {
+  const _MetricGrid({required this.metrics});
+  final List<Widget> metrics;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, constraints) {
+    const gap = 8.0;
+    final columns = constraints.maxWidth >= 700 && metrics.length > 2 ? 4 : 2;
+    final width = ((constraints.maxWidth - gap * (columns - 1)) / columns).clamp(0.0, double.infinity);
+    return Wrap(spacing: gap, runSpacing: gap, children: [
+      for (final metric in metrics) SizedBox(width: width, child: metric),
+    ]);
+  });
+}
+
 class _Metric extends StatelessWidget {
   const _Metric({required this.icon, required this.count, required this.label, this.large = false});
   final bool large;
@@ -131,15 +146,15 @@ class _Metric extends StatelessWidget {
   final String label;
 
   @override
-  Widget build(BuildContext context) => Card(child: SizedBox(width: large ? 200 : 166, child: Padding(
-    padding: const EdgeInsets.all(17),
+  Widget build(BuildContext context) => Card(child: Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Icon(icon, color: Theme.of(context).colorScheme.primary, size: large ? 34 : 24),
       const SizedBox(height: 10),
-      Text(count, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
-      Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+      Text(count, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+      Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
     ]),
-  )));
+  ));
 }
 
 class MemoryTile extends StatelessWidget {
