@@ -16,13 +16,15 @@ flutter doctor
 flutter devices
 ```
 
-For remote mode, load your trusted local `.env` in the same terminal:
+For remote mode, synchronize both IDEs from the backend token in `.env`:
 
 ```bash
-set -a
-source .env
-set +a
+python3 scripts/configure_ios_debug.py --url https://api.speechspace.health --sync-android
 ```
+
+No manual token copying or `source .env` is needed. Rerun after the backend token
+changes. This syncs local files; it does not rotate or restart the deployed backend.
+For a separate backend env file, add `--env-file /path/to/backend.env`.
 
 ## Xcode (macOS)
 
@@ -43,20 +45,7 @@ The Git-ignored `ios/Flutter/Debug.local.xcconfig` survives normal regeneration.
 
 ## Android Studio (Android device/emulator)
 
-Create the Git-ignored token file from the environment loaded above:
-
-```bash
-python3 - <<'PY'
-import json, os
-from pathlib import Path
-token = os.environ.get('APP_DEV_TOKEN', '')
-assert token.strip(), 'Load APP_DEV_TOKEN from .env first'
-p = Path('config/dev.local.json')
-p.touch(mode=0o600, exist_ok=True)
-p.chmod(0o600)
-p.write_text(json.dumps({'DEV_API_TOKEN': token}, indent=2) + '\n')
-PY
-```
+The preparation command above creates the Git-ignored token file automatically.
 
 Open the **repository root** in Android Studio, not only `android/`.
 On macOS: `open -a "Android Studio" .`

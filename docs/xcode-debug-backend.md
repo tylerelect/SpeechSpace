@@ -7,17 +7,15 @@ No `flutter run` command or scheme environment variables are needed.
 
 ## Configure this Mac
 
-From the repository root, load the trusted local `.env` and generate the override:
+From the repository root, generate both local IDE configurations from `.env`:
 
 ```sh
-set -a
-source .env
-set +a
 python3 scripts/configure_ios_debug.py \
-  --url https://api.speechspace.health
+  --url https://api.speechspace.health --sync-android
 ```
 
-The script reads `APP_DEV_TOKEN` and writes `ios/Flutter/Debug.local.xcconfig`
+The script reads `APP_DEV_TOKEN` from `.env` (or `--env-file`) without executing it.
+If the file is absent, it falls back to the exported environment. It writes `ios/Flutter/Debug.local.xcconfig`
 with owner-only permissions. That file is Git-ignored. It supplies the existing
 `API_BASE_URL` and `DEV_API_TOKEN` compile-time contracts as comma-separated
 Base64 `KEY=value` entries in Flutter's `DART_DEFINES` build setting. It never
@@ -44,10 +42,7 @@ configuration preparation, not required before each Xcode Run.
 After `https://api.speechspace.health` is routed to the backend and HTTPS works:
 
 ```sh
-set -a
-source .env
-set +a
-python3 scripts/configure_ios_debug.py --url https://api.speechspace.health
+python3 scripts/configure_ios_debug.py --url https://api.speechspace.health --sync-android
 ```
 
 Stop and Run again in Xcode to recompile. A Quick Tunnel URL can change when
