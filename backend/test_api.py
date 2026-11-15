@@ -52,7 +52,9 @@ def test_legacy_profiles_and_persistent_themes(ctx):
     database.children.insert_one({'ownerId': 'parent-one', 'id': 'old-1', 'name': 'Legacy'})
     kids = make_profile(client, 'kids', '  Sky  ')
     adult = make_profile(client, 'adult', 'Parent')
-    assert kids == {'id': kids['id'], 'name': 'Sky', 'kind': 'kids', 'themeId': 'space'}
+    assert kids == {'id': kids['id'], 'name': 'Sky', 'kind': 'kids', 'themeId': 'space',
+                    'age': None, 'school': '', 'favoriteColor': '', 'interests': [],
+                    'occupation': '', 'goals': []}
     assert adult['themeId'] == 'indigo'
     assert client.patch(f"/api/profiles/{kids['id']}", json={'themeId': 'ocean'}).json()['themeId'] == 'ocean'
     assert client.patch(f"/api/profiles/{adult['id']}", json={'themeId': 'slate'}).json()['themeId'] == 'slate'
@@ -63,6 +65,90 @@ def test_legacy_profiles_and_persistent_themes(ctx):
     assert profiles[kids['id']]['themeId'] == 'ocean'
     assert profiles[adult['id']]['themeId'] == 'slate'
     assert database.children.find_one({'id': kids['id']})['themeId'] == 'ocean'
+
+
+def test_profile_details_partial_updates_and_validation(ctx):
+    client, database = ctx
+    kid = make_profile(client, 'kids', 'Sky')
+    url = f"/api/profiles/{kid['id']}"
+    saved = client.patch(url, json={'age': 8, 'school': '  Maple   School ', 'favoriteColor': 'Blue',
+                                    'interests': ['soccer', ' Soccer ', 'dinosaurs', '']}).json()
+    assert saved['age'] == 8 and saved['school'] == 'Maple School' and saved['favoriteColor'] == 'Blue'
+    assert saved['interests'] == ['soccer', 'dinosaurs'] and saved['themeId'] == 'space'
+    # Theme-only updates leave the details alone; details-only updates leave the theme alone.
+    assert client.patch(url, json={'themeId': 'ocean'}).json()['school'] == 'Maple School'
+    assert client.patch(url, json={'school': ''}).json()['themeId'] == 'ocean'
+    cleared = client.patch(url, json={'age': None, 'interests': None}).json()
+    assert cleared['age'] is None and cleared['interests'] == [] and cleared['favoriteColor'] == 'Blue'
+    for bad in ({'age': 2}, {'age': 18}, {'school': 'x' * 61}, {'favoriteColor': 'x' * 25},
+                {'interests': ['a'] * 6}, {'interests': ['x' * 31]}, {}):
+        assert client.patch(url, json=bad).status_code == 422, bad
+    assert database.children.find_one({'id': kid['id']})['favoriteColor'] == 'Blue'
+
+
+def test_adult_profile_details_use_adult_age_range(ctx):
+    client, database = ctx
+    adult = make_profile(client, 'adult', 'Jamie')
+    url = f"/api/profiles/{adult['id']}"
+    saved = client.patch(url, json={'age': 34, 'occupation': '  Nurse ', 'goals': ['run a 10k', 'Run a 10K', ' '],
+                                    'interests': ['cooking']}).json()
+    assert saved['age'] == 34 and saved['occupation'] == 'Nurse'
+    assert saved['goals'] == ['run a 10k'] and saved['interests'] == ['cooking'] and saved['themeId'] == 'indigo'
+    assert client.patch(url, json={'age': 18}).json()['age'] == 18
+    assert client.patch(url, json={'age': 100}).json()['age'] == 100
+    cleared = client.patch(url, json={'occupation': None, 'goals': None}).json()
+    assert cleared['occupation'] == '' and cleared['goals'] == [] and cleared['age'] == 100
+    for bad in ({'age': 17}, {'age': 3}, {'age': 101}, {'occupation': 'x' * 61},
+                {'goals': ['a', 'b', 'c', 'd']}, {'goals': ['x' * 41]}):
+        assert client.patch(url, json=bad).status_code == 422, bad
+    assert database.children.find_one({'id': adult['id']})['age'] == 100
+    # The age range depends on the profile kind: 30 is fine for an adult, not for a kid.
+    kid = make_profile(client, 'kids', 'Sky')
+    assert client.patch(f"/api/profiles/{kid['id']}", json={'age': 30}).status_code == 422
+    # Older stored profiles without the adult keys read back as empty.
+    database.children.insert_one({'ownerId': 'parent-one', 'id': 'old-adult', 'name': 'Old', 'kind': 'adult'})
+    old = {x['id']: x for x in client.get('/api/snapshot').json()['children']}['old-adult']
+    assert old['occupation'] == '' and old['goals'] == [] and old['age'] is None
+
+
+def test_adult_prompts_use_adult_details(ctx, monkeypatch):
+    client, _ = ctx
+    monkeypatch.setattr(backend, 'GEMINI_KEY', 'not-real')
+    seen = []
+
+    def fake(prompt, schema, temperature=0.2):
+        seen.append(prompt)
+        return {'prompts': [{'label': 'How did work go?', 'starter': 'At work '},
+                            {'label': 'Next step', 'starter': 'Next: '}]}
+    monkeypatch.setattr(backend, 'generate_structured', fake)
+    adult = make_profile(client, 'adult', 'Jamie')
+    client.patch(f"/api/profiles/{adult['id']}", json={'age': 40, 'occupation': 'teacher',
+                                                       'goals': ['learn Spanish'], 'interests': ['cycling']})
+    body = {'text': 'Long day, lots of meetings.', 'kind': 'adult', 'profileId': adult['id']}
+    assert client.post('/api/prompts', json=body).status_code == 200
+    about = seen[-1]
+    assert 'age 40' in about and 'works as teacher' in about and 'learn Spanish' in about
+    assert 'hobbies cycling' in about and 'set by the writer' in about and 'guardian' not in about
+
+
+def test_prompts_use_profile_details(ctx, monkeypatch):
+    client, _ = ctx
+    monkeypatch.setattr(backend, 'GEMINI_KEY', 'not-real')
+    seen = []
+
+    def fake(prompt, schema, temperature=0.2):
+        seen.append(prompt)
+        return {'prompts': [{'label': 'How was school?', 'starter': 'At school '},
+                            {'label': 'Who did you see?', 'starter': 'I saw '}]}
+    monkeypatch.setattr(backend, 'generate_structured', fake)
+    kid = make_profile(client, 'kids', 'Sky')
+    client.patch(f"/api/profiles/{kid['id']}", json={'age': 7, 'school': 'Maple School', 'interests': ['soccer']})
+    body = {'text': 'We played a game at recess.', 'kind': 'kids'}
+    assert client.post('/api/prompts', json={**body, 'profileId': kid['id']}).status_code == 200
+    assert 'age 7' in seen[-1] and 'Maple School' in seen[-1] and 'soccer' in seen[-1]
+    assert client.post('/api/prompts', json=body).status_code == 200
+    assert 'ABOUT THE WRITER' not in seen[-1]
+    assert client.post('/api/prompts', json={**body, 'profileId': 'someone-else'}).status_code == 404
 
 
 def test_profile_input_validations_and_old_alias(ctx):

@@ -1,22 +1,119 @@
+/// Optional "About me" details for a profile. Kids profiles use age, school,
+/// favorite color and interests; Adult profiles use age, occupation, goals and
+/// interests (shown as hobbies). Every field is optional: a missing JSON key
+/// means empty, so older profiles keep working. Synthetic data only.
+class ProfileDetails {
+  final int? age;
+  final String school;
+  final String favoriteColor;
+  final List<String> interests;
+  /// Adult only: a job title or role such as "nurse" (never an employer).
+  final String occupation;
+  /// Adult only: current goals or focus areas, such as "run a 10k".
+  final List<String> goals;
+
+  /// Kids age range.
+  static const minAge = 3;
+  static const maxAge = 17;
+  static const minAdultAge = 18;
+  static const maxAdultAge = 100;
+  static const maxSchool = 60;
+  static const maxColor = 24;
+  static const maxInterests = 5;
+  static const maxInterest = 30;
+  static const maxOccupation = 60;
+  static const maxGoals = 3;
+  static const maxGoal = 40;
+
+  const ProfileDetails({this.age, this.school = '', this.favoriteColor = '', this.interests = const [],
+      this.occupation = '', this.goals = const []});
+
+  static const empty = ProfileDetails();
+
+  /// Allowed ages for a profile kind ([SpaceProfile.kids] or [SpaceProfile.adult]).
+  static (int, int) ageRange(String kind) =>
+      kind == SpaceProfile.adult ? (minAdultAge, maxAdultAge) : (minAge, maxAge);
+
+  bool get isEmpty => age == null && school.isEmpty && favoriteColor.isEmpty && interests.isEmpty &&
+      occupation.isEmpty && goals.isEmpty;
+
+  /// Splits a comma-separated list into tidy, de-duplicated interests.
+  static List<String> parseInterests(String text) => _parseList(text, maxInterests, maxInterest);
+
+  /// Splits a comma-separated list into tidy, de-duplicated goals.
+  static List<String> parseGoals(String text) => _parseList(text, maxGoals, maxGoal);
+
+  static List<String> _parseList(String text, int maxItems, int maxLength) {
+    final seen = <String>{};
+    return [
+      for (final raw in text.split(','))
+        // Tidy (and clip) before de-duplicating, so two long items that clip to
+        // the same text don't both survive.
+        if (tidy(raw, maxLength) case final item when item.isNotEmpty && seen.add(item.toLowerCase())) item,
+    ].take(maxItems).toList();
+  }
+
+  static final _spaces = RegExp(r'\s+');
+
+  /// Normalizes free text the same way the backend does: runs of whitespace
+  /// become one space, then trim. Clips to [max] Unicode code points, which is
+  /// what the backend's length limits count (not UTF-16 units or graphemes).
+  static String tidy(String text, int max) {
+    final t = text.replaceAll(_spaces, ' ').trim();
+    final runes = t.runes;
+    return runes.length <= max ? t : String.fromCharCodes(runes.take(max)).trimRight();
+  }
+
+  factory ProfileDetails.fromJson(Map<String, dynamic> json) {
+    String text(Object? v) => (v is String ? v : '').trim();
+    List<String> list(Object? v) =>
+        [for (final i in (v is List ? v : const [])) if (i is String && i.trim().isNotEmpty) i.trim()];
+    final age = json['age'];
+    return ProfileDetails(
+      age: age is num ? age.toInt() : null,
+      school: text(json['school']),
+      favoriteColor: text(json['favoriteColor']),
+      interests: list(json['interests']),
+      occupation: text(json['occupation']),
+      goals: list(json['goals']),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {'age': age, 'school': school, 'favoriteColor': favoriteColor,
+      'interests': interests, 'occupation': occupation, 'goals': goals};
+
+  @override
+  bool operator ==(Object other) => other is ProfileDetails && other.age == age && other.school == school &&
+      other.favoriteColor == favoriteColor && other.interests.join('\u0000') == interests.join('\u0000') &&
+      other.occupation == occupation && other.goals.join('\u0000') == goals.join('\u0000');
+
+  @override
+  int get hashCode =>
+      Object.hash(age, school, favoriteColor, interests.join('\u0000'), occupation, goals.join('\u0000'));
+}
+
 /// A journal owner. `kind` is `kids` or `adult`; both share the same data model.
-/// Wire format: `{id, name, kind, themeId}`. Entries and links still refer to it
-/// through their legacy `childId` key.
+/// Wire format: `{id, name, kind, themeId, age, school, favoriteColor, interests,
+/// occupation, goals}`.
+/// Entries and links still refer to it through their legacy `childId` key.
 class SpaceProfile {
   final String id;
   final String name;
   final String kind;
   final String themeId;
+  final ProfileDetails details;
 
   static const kids = 'kids';
   static const adult = 'adult';
 
-  const SpaceProfile({required this.id, required this.name, this.kind = kids, String? themeId})
+  const SpaceProfile({required this.id, required this.name, this.kind = kids, String? themeId,
+      this.details = ProfileDetails.empty})
       : themeId = themeId ?? (kind == adult ? 'indigo' : 'space');
 
   bool get isKids => kind != adult;
 
-  SpaceProfile copyWith({String? name, String? themeId}) =>
-      SpaceProfile(id: id, name: name ?? this.name, kind: kind, themeId: themeId ?? this.themeId);
+  SpaceProfile copyWith({String? name, String? themeId, ProfileDetails? details}) => SpaceProfile(
+      id: id, name: name ?? this.name, kind: kind, themeId: themeId ?? this.themeId, details: details ?? this.details);
 
   factory SpaceProfile.fromJson(Map<String, dynamic> json) {
     final kind = json['kind'] == adult ? adult : kids;
@@ -26,10 +123,11 @@ class SpaceProfile {
       name: json['name'] as String,
       kind: kind,
       themeId: theme == null || theme.isEmpty ? null : theme,
+      details: ProfileDetails.fromJson(json),
     );
   }
 
-  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'kind': kind, 'themeId': themeId};
+  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'kind': kind, 'themeId': themeId, ...details.toJson()};
 }
 
 class JournalEntry {

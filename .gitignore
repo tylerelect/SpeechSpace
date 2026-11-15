@@ -126,3 +126,6 @@ android/key.properties
 
 # Local source snapshots; keep these out of shared code reviews.
 /docs/checkpoint-*.md
+
+# Local agent/tool state (e.g. Dart skills installer)
+/.config/

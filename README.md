@@ -68,7 +68,7 @@ Add in the project root `.env`:
 
 ```ini
 GEMINI_API_KEY=your_server_side_key
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3.5-flash-lite
 ```
 
 The model name is configurable. Use an API-available Flash model for your account. The backend asks Gemini to extract a non-diagnostic **highlight, an explicitly mentioned favorite, and 1–3 tags**. It must not infer psychological traits, medical conditions, or developmental ability. A guardian reviews the suggestions before saving them.

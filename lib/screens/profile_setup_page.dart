@@ -5,6 +5,7 @@ import '../services/app_controller.dart';
 import '../services/sound_service.dart';
 import '../theme/space_themes.dart';
 import '../widgets/commander_video.dart';
+import '../widgets/profile_details_form.dart';
 
 /// Opens the setup flow as a full-screen page. Resolves to the new profile, or
 /// null if the user backed out.
@@ -14,7 +15,8 @@ Future<SpaceProfile?> openProfileSetup(BuildContext context, AppController contr
       builder: (_) => ProfileSetupPage(controller: controller),
     ));
 
-/// Step-by-step profile creation: who → look → commander (Kids only).
+/// Step-by-step profile creation: who → about (optional) → look → commander
+/// (Kids only).
 /// The page previews the chosen theme live while you configure it.
 class ProfileSetupPage extends StatefulWidget {
   const ProfileSetupPage({super.key, required this.controller});
@@ -29,13 +31,14 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
   String _kind = SpaceProfile.kids;
   String _themeId = 'space';
   String _voice = 'f';
+  ProfileDetails _details = ProfileDetails.empty;
   int _step = 0;
   bool _saving = false;
   String? _error;
 
   SoundService get _sound => widget.controller.sound;
   bool get _kids => _kind == SpaceProfile.kids;
-  int get _lastStep => _kids ? 2 : 1;
+  int get _lastStep => _kids ? 3 : 2;
   bool get _nameValid => _name.text.trim().isNotEmpty;
 
   @override
@@ -54,6 +57,8 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
   }
 
   void _setKind(String kind) => setState(() {
+        // Details are kind-specific (e.g. the age range), so start over.
+        if (kind != _kind) _details = ProfileDetails.empty;
         _kind = kind;
         _themeId = themesFor(kind).first.id;
         if (kind == SpaceProfile.adult) _sound.stopMusic();
@@ -69,8 +74,14 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     try {
       await _sound.stopBriefing();
       final created = await widget.controller.addProfile(_name.text, _kind,
-          themeId: _themeId, voice: _kids ? _voice : null);
+          themeId: _themeId, voice: _kids ? _voice : null, details: _details);
       if (mounted) Navigator.of(context).pop(created);
+    } on ProfileSetupIncomplete catch (e) {
+      // The profile exists, so retrying here would create a duplicate: go on
+      // with it and say what's missing.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      Navigator.of(context).pop(e.profile);
     } catch (e) {
       if (mounted) setState(() { _saving = false; _error = '$e'; });
     }
@@ -99,9 +110,10 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
             children: [
               _StepDots(count: _lastStep + 1, current: _step),
               const SizedBox(height: 20),
-              ...switch (_step) {
-                0 => _whoStep(theme),
-                1 => _lookStep(theme),
+              ...switch ((_step, _kids)) {
+                (0, _) => _whoStep(theme),
+                (1, _) => _aboutStep(theme),
+                (2, _) => _lookStep(theme),
                 _ => _commanderStep(theme),
               },
               if (_error != null) Padding(padding: const EdgeInsets.only(top: 12),
@@ -148,6 +160,20 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
             selected: !_kids, onTap: () => _setKind(SpaceProfile.adult),
           )),
         ]),
+      ];
+
+  List<Widget> _aboutStep(ThemeData theme) => [
+        Text('About ${_name.text.trim()}', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 6),
+        Text(_kids
+            ? 'Optional. These details help SpeechSpace ask fun questions like "How was school today?" '
+                'or "Did you see anything blue?". You can skip this or change it later in Settings.'
+            : 'Optional. These details help SpeechSpace ask practical questions like "How did work go today?" '
+                'or "Any progress on your goal?". Use made-up details in this prototype. '
+                'You can skip this or change it later in Settings.'),
+        const SizedBox(height: 16),
+        ProfileDetailsForm(key: ValueKey('details-form-$_kind'), kind: _kind, initial: _details,
+            onChanged: (d) => _details = d),
       ];
 
   List<Widget> _lookStep(ThemeData theme) => [

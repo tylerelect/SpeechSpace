@@ -13,7 +13,9 @@ abstract class MemoryRepository {
   bool get isDemo;
   Future<AppSnapshot> load();
   Future<SpaceProfile> addProfile(String name, String kind);
-  Future<SpaceProfile> updateProfile(SpaceProfile profile);
+  /// Saves [profile]'s theme and/or details. Only the selected parts are sent,
+  /// so a theme change can't overwrite details saved elsewhere (or vice versa).
+  Future<SpaceProfile> updateProfile(SpaceProfile profile, {bool theme = true, bool details = true});
   Future<void> deleteChild(String id); // deletes any profile (Kids or Adult)
   Future<ProjectSpace> addProject(String profileId, String name);
   /// Deletes a project; its entries survive with `projectId: ''`.
@@ -26,7 +28,9 @@ abstract class MemoryRepository {
   /// Asks Gemini for new ideas/recommendations based on related entries.
   Future<List<StarIdea>> expand(String profileId, List<String> entryIds, {required String kind});
   /// Asks Gemini for "add more detail" prompts that fit the draft being written.
-  Future<List<WritingPrompt>> detailPrompts(String text, {required String kind});
+  /// [profileId], when given, lets the backend tailor prompts to that
+  /// profile's optional "About me" details.
+  Future<List<WritingPrompt>> detailPrompts(String text, {required String kind, String? profileId});
   Future<String> transcribe(Uint8List wav);
   Future<CalendarData> calendar(String profileId, CalendarView view, DateTime date, {String projectId = ''});
   /// Generates a recap on demand. Never saved.
@@ -51,8 +55,10 @@ class DemoRepository implements MemoryRepository {
   @override
   bool get isDemo => true;
   final List<SpaceProfile> _children = [
-    const SpaceProfile(id: 'demo-alex', name: 'Alex'),
-    const SpaceProfile(id: 'demo-jordan', name: 'Jordan', kind: SpaceProfile.adult),
+    const SpaceProfile(id: 'demo-alex', name: 'Alex', details: ProfileDetails(
+        age: 8, school: 'Maple School', favoriteColor: 'Blue', interests: ['dinosaurs', 'soccer'])),
+    const SpaceProfile(id: 'demo-jordan', name: 'Jordan', kind: SpaceProfile.adult, details: ProfileDetails(
+        age: 34, occupation: 'Designer', goals: ['run a 10k'], interests: ['cooking'])),
   ];
   final List<JournalEntry> _entries = [];
   final List<MemoryLink> _links = [];
@@ -145,11 +151,12 @@ class DemoRepository implements MemoryRepository {
   }
 
   @override
-  Future<SpaceProfile> updateProfile(SpaceProfile profile) async {
+  Future<SpaceProfile> updateProfile(SpaceProfile profile, {bool theme = true, bool details = true}) async {
     final i = _children.indexWhere((c) => c.id == profile.id);
     if (i < 0) throw StateError('Profile not found.');
-    _children[i] = profile;
-    return profile;
+    final old = _children[i];
+    return _children[i] = old.copyWith(
+        themeId: theme ? profile.themeId : null, details: details ? profile.details : null);
   }
 
   @override
@@ -215,7 +222,7 @@ class DemoRepository implements MemoryRepository {
   }
 
   @override
-  Future<List<WritingPrompt>> detailPrompts(String text, {required String kind}) async {
+  Future<List<WritingPrompt>> detailPrompts(String text, {required String kind, String? profileId}) async {
     await Future<void>.delayed(const Duration(milliseconds: 350));
     return demoAiPrompts(text, kids: kind != SpaceProfile.adult);
   }
@@ -295,8 +302,9 @@ class RemoteRepository implements MemoryRepository {
       SpaceProfile.fromJson(await _request('POST', '/api/profiles', {'name': name, 'kind': kind}));
 
   @override
-  Future<SpaceProfile> updateProfile(SpaceProfile profile) async => SpaceProfile.fromJson(
-      await _request('PATCH', '/api/profiles/${Uri.encodeComponent(profile.id)}', {'themeId': profile.themeId}));
+  Future<SpaceProfile> updateProfile(SpaceProfile profile, {bool theme = true, bool details = true}) async =>
+      SpaceProfile.fromJson(await _request('PATCH', '/api/profiles/${Uri.encodeComponent(profile.id)}',
+          {if (theme) 'themeId': profile.themeId, if (details) ...profile.details.toJson()}));
 
   @override
   Future<void> deleteChild(String id) async { await _request('DELETE', '/api/profiles/${Uri.encodeComponent(id)}'); }
@@ -345,15 +353,16 @@ class RemoteRepository implements MemoryRepository {
   /// `backend/test_calendar.py`).
   ///
   /// `POST /api/prompts`
-  /// Request:  `{ "text": "<draft, 1–8000 chars>", "kind": "kids" | "adult" }`
+  /// Request:  `{ "text": "<draft, 1–8000 chars>", "kind": "kids" | "adult", "profileId"?: "..." }`
   /// Response: `{ "prompts": [ { "label": "Who helped you?", "starter": "Someone who helped me was " } ] }`
   ///           (2–4 prompts; label ≤ 40 chars is the chip text; starter ≤ 80 chars
   ///           is an unfinished sentence the writer completes in their own words)
   /// Errors:   503 when GEMINI_API_KEY is unset, 502 when Gemini fails.
   /// The draft is not stored; it is only used to generate the prompts.
   @override
-  Future<List<WritingPrompt>> detailPrompts(String text, {required String kind}) async {
-    final data = await _request('POST', '/api/prompts', {'text': text, 'kind': kind});
+  Future<List<WritingPrompt>> detailPrompts(String text, {required String kind, String? profileId}) async {
+    final data = await _request('POST', '/api/prompts',
+        {'text': text, 'kind': kind, if (profileId != null) 'profileId': profileId});
     final seen = <String>{};
     return ((data['prompts'] as List?) ?? [])
         .whereType<Map<Object?, Object?>>()

@@ -5,6 +5,7 @@ import 'package:speechspace/main.dart';
 import 'package:speechspace/models/models.dart';
 import 'package:speechspace/screens/mind_map_page.dart';
 import 'package:speechspace/services/app_controller.dart';
+import 'package:speechspace/services/profile_questions.dart';
 import 'package:speechspace/services/repository.dart';
 import 'package:speechspace/services/writing_prompts.dart';
 import 'package:speechspace/widgets/entry_editor.dart';
@@ -72,6 +73,14 @@ void main() {
     await tester.tap(find.text('Next'));
     await tester.pumpAndSettle();
 
+    expect(find.text('About Riley'), findsOneWidget); // optional details step
+    await tester.enterText(find.byKey(const ValueKey('details-school')), 'Oak School');
+    await tester.tap(find.byKey(const ValueKey('color-Green')));
+    await tester.enterText(find.byKey(const ValueKey('details-interests')), 'drawing, cats');
+    await tester.pump();
+    await tester.tap(find.text('Next'));
+    await tester.pumpAndSettle();
+
     expect(find.text('Pick a look'), findsOneWidget);
     expect(find.text('Indigo'), findsNothing); // only Kids themes offered
     await tester.tap(find.text('Ocean'));
@@ -90,7 +99,43 @@ void main() {
     expect(controller.profile?.kind, SpaceProfile.kids);
     expect(controller.spaceTheme.id, 'ocean');
     expect(controller.voice, 'm');
+    expect(controller.profile?.details,
+        const ProfileDetails(school: 'Oak School', favoriteColor: 'Green', interests: ['drawing', 'cats']));
     expect(find.text('Ready for liftoff!'), findsOneWidget);
+  });
+
+  testWidgets('About me details personalize the Today question and editor chips', (tester) async {
+    tester.view.physicalSize = const Size(1000, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final controller = await demoController();
+    controller.enterApp('demo-alex'); // demo Alex has school, color and interests
+    await tester.pumpWidget(SpeechSpaceApp(controller: controller));
+    await tester.pumpAndSettle();
+    final question = dailyQuestion(controller.profile, DateTime.now(), fallback: 'unused');
+    expect(question, isNot('unused'));
+    expect(find.text(question), findsOneWidget);
+
+    await tester.pumpWidget(MaterialApp(theme: controller.theme, home: Scaffold(
+        body: EntryEditor(controller: controller, initialDate: DateTime.now()))));
+    await tester.pumpAndSettle();
+    expect(find.text('Need an idea?'), findsOneWidget); // shown before anything is written
+    final lead = startingPrompts(controller.profile, DateTime.now()).first;
+    expect(lead.label, question); // the Today question is always the first chip
+    await tester.tap(find.text(question));
+    await tester.pump();
+    final body = find.widgetWithText(TextField, 'What happened?');
+    expect(tester.widget<TextField>(body).controller!.text, lead.starter);
+    expect(find.text(question), findsNothing); // used questions go away
+  });
+
+  testWidgets('back-dated entries skip the "today" questions', (tester) async {
+    final controller = await demoController();
+    controller.enterApp('demo-alex');
+    await tester.pumpWidget(MaterialApp(theme: controller.theme, home: Scaffold(
+        body: EntryEditor(controller: controller, initialDate: DateTime.now().subtract(const Duration(days: 3))))));
+    await tester.pumpAndSettle();
+    expect(find.text('Need an idea?'), findsNothing);
   });
 
   testWidgets('Adult setup skips the commander step', (tester) async {
@@ -106,6 +151,9 @@ void main() {
     await tester.enterText(find.byType(TextField), 'Sam');
     await tester.tap(find.text('Adult'));
     await tester.pump();
+    await tester.tap(find.text('Next'));
+    await tester.pumpAndSettle();
+    expect(find.text('Step 2 of 3'), findsOneWidget); // optional adult about step
     await tester.tap(find.text('Next'));
     await tester.pumpAndSettle();
     expect(find.text('Space'), findsNothing); // only Adult themes offered

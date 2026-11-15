@@ -6,6 +6,8 @@ import '../theme/space_themes.dart';
 import 'app_shell.dart' show ProfileAvatar;
 import 'profile_setup_page.dart';
 import '../widgets/commander_video.dart';
+import '../widgets/profile_details_form.dart';
+import '../models/models.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key, required this.controller});
@@ -74,6 +76,11 @@ class SettingsPage extends StatelessWidget {
           ]),
         ]))),
       ],
+      if (profile != null) ...[
+        const SizedBox(height: 12),
+        // Keyed by profile so switching profiles resets the form.
+        _AboutCard(key: ValueKey('about-${profile.id}'), controller: controller),
+      ],
       if (controller.isKids) ...[
         const SizedBox(height: 12),
         _KidsSoundCard(controller: controller),
@@ -108,6 +115,69 @@ class SettingsPage extends StatelessWidget {
     contentPadding: EdgeInsets.zero,
     leading: Icon(icon), title: Text(title), subtitle: Text(sub),
   );
+}
+
+/// Edits the active profile's optional "About me" details, which personalize
+/// the questions on the Today screen and in the entry editor.
+class _AboutCard extends StatefulWidget {
+  const _AboutCard({super.key, required this.controller});
+  final AppController controller;
+
+  @override
+  State<_AboutCard> createState() => _AboutCardState();
+}
+
+class _AboutCardState extends State<_AboutCard> {
+  late ProfileDetails _draft = widget.controller.profile?.details ?? ProfileDetails.empty;
+  int _formVersion = 0; // bumped to rebuild the form from the saved values
+  bool _saving = false;
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      await widget.controller.setDetails(_draft);
+      // Show exactly what the server stored (it may tidy the text), so the
+      // form isn't left looking unsaved.
+      if (mounted) {
+        setState(() {
+          _draft = widget.controller.profile?.details ?? _draft;
+          _formVersion++;
+        });
+      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saved.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = widget.controller.profile;
+    final changed = _draft != profile?.details;
+    return Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('About ${profile?.name ?? 'this profile'}', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 4),
+        Text(profile?.isKids ?? true
+            ? 'Optional. Used only to ask personal questions like "How was school today?". '
+                'Prototype: use made-up details, not real ones.'
+            : 'Optional. Used only to suggest questions like "How did work go today?" or "Any progress on your goal?". '
+                'Prototype: use made-up details, not real ones.'),
+        const SizedBox(height: 14),
+        ProfileDetailsForm(key: ValueKey(_formVersion), kind: profile?.kind ?? SpaceProfile.kids, initial: _draft,
+            onChanged: (d) => setState(() => _draft = d)),
+        const SizedBox(height: 12),
+        Align(alignment: Alignment.centerRight, child: FilledButton.icon(
+          key: const ValueKey('details-save'),
+          onPressed: _saving || !changed ? null : _save,
+          icon: const Icon(Icons.save_outlined),
+          label: Text(_saving ? 'Saving…' : 'Save details'),
+        )),
+      ],
+    )));
+  }
 }
 
 class _KidsSoundCard extends StatelessWidget {
