@@ -290,6 +290,7 @@ class _EntryEditorState extends State<EntryEditor> {
             onTranscribe: widget.controller.transcribe,
             recorderFactory: widget.voiceRecorderFactory,
             prompt: copy.recordPrompt,
+            requireGuardianApproval: copy.isKids,
             onRecordingChanged: widget.controller.sound.onRecordingChanged,
             onTranscript: (text) {
               _body.text = _body.text.isEmpty ? text : '${_body.text}\n$text';
