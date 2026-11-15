@@ -72,6 +72,7 @@ class _ProfileDetailsFormState extends State<ProfileDetailsForm> {
   Widget _ageField() => DropdownButtonFormField<int?>(
         key: const ValueKey('details-age'),
         initialValue: _age,
+        menuMaxHeight: (MediaQuery.sizeOf(context).height * .35).clamp(96.0, 280.0),
         decoration: const InputDecoration(labelText: 'Age', prefixIcon: Icon(Icons.cake_outlined)),
         items: [
           const DropdownMenuItem<int?>(child: Text('Prefer not to say')),
