@@ -14,7 +14,7 @@ set -a
 source .env
 set +a
 python3 scripts/configure_ios_debug.py \
-  --url https://course-rocks-purposes-transmitted.trycloudflare.com
+  --url https://api.speechspace.health
 ```
 
 The script reads `APP_DEV_TOKEN` and writes `ios/Flutter/Debug.local.xcconfig`

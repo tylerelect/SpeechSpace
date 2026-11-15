@@ -28,7 +28,7 @@ set +a
 
 ```bash
 python3 scripts/configure_ios_debug.py \
-  --url https://course-rocks-purposes-transmitted.trycloudflare.com
+  --url https://api.speechspace.health
 flutter build ios --config-only --debug --no-codesign
 open ios/Runner.xcworkspace
 ```

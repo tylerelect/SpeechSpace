@@ -3,8 +3,10 @@
 This runs a **separate production stack** next to the dev backend. It has its own
 container, database, token and Cloudflare named tunnel at
 `https://api.speechspace.health`. It also covers building the Flutter app that
-points at it. The dev setup in `run.md` (quick tunnel, `SpeechSpace (Remote API)`)
-keeps working unchanged.
+points at it. The shared Remote API launcher in `run.md` already uses this
+permanent hostname. Moving that route to a separate stack changes which backend
+it reaches; update the local client token to match. Keep any separate dev stack
+on a different hostname. A permanent address alone does not require a new database.
 
 > **Read first.** "Production" here means a stable, always-on deployment of the
 > **existing prototype**. Every client still shares one bearer token (`APP_DEV_TOKEN`),
@@ -173,7 +175,7 @@ distribute through Xcode/TestFlight internal testing. If a local
 
 | What | Dev | Prod |
 |---|---|---|
-| URL | `*.trycloudflare.com` (changes) | `https://api.speechspace.health` |
+| URL | Separate dev hostname, if needed | `https://api.speechspace.health` |
 | Backend env file | `.env` | `.env.prod` |
 | Database | `speechspace_dev` | `speechspace_prod` |
 | Container / port | dev setup | `speechspace-prod` on `127.0.0.1:8100` |
