@@ -58,7 +58,16 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     return AnimatedBuilder(animation: widget.controller, builder: (context, _) {
       final controller = widget.controller;
-      if (controller.loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      if (controller.loading) return const Scaffold(body: Center(child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 20),
+          Text('Opening SpeechSpace'),
+          SizedBox(height: 8),
+          Text('Loading your profiles and memories…'),
+        ],
+      )));
       if (controller.loadError != null) {
         return Scaffold(body: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 480),
           child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [

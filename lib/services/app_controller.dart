@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show ThemeData;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,8 +14,12 @@ import 'sound_service.dart';
 import 'writing_prompts.dart';
 
 class AppController extends ChangeNotifier {
-  AppController(this.repository, {SoundService? sound, this.persistSelection = true})
-      : sound = sound ?? SoundService();
+  AppController(this.repository, {SoundService? sound, this.persistSelection = true,
+    Future<SharedPreferences> Function()? preferencesLoader})
+      : sound = sound ?? SoundService(),
+        _preferencesLoader = preferencesLoader ?? SharedPreferences.getInstance;
+  final Future<SharedPreferences> Function() _preferencesLoader;
+  static const _selectionTimeout = Duration(seconds: 2);
   final MemoryRepository repository;
   final SoundService sound;
   /// Remembers the selected profile across restarts (convenience, not auth).
@@ -90,9 +96,12 @@ class AppController extends ChangeNotifier {
   Future<void> initialize() async {
     loading = true;
     notifyListeners();
+    // Optional device storage and the API can load concurrently. A stalled
+    // preferences plugin must not hold the app on its loading screen forever.
+    final preferences = _startupPreferences();
     try {
       await refresh();
-      await _restoreSelection();
+      await _restoreSelection(preferences);
       loadError = null;
     } catch (error) {
       loadError = error.toString();
@@ -134,16 +143,26 @@ class AppController extends ChangeNotifier {
 
   /// Restores the remembered profile only if it still exists; otherwise keeps
   /// the fallback chosen by [refresh] and shows the start screen.
-  Future<void> _restoreSelection() async {
-    if (!persistSelection) return;
+  Future<SharedPreferences?> _startupPreferences() async {
+    if (!persistSelection) return null;
     try {
-      final prefs = await SharedPreferences.getInstance();
+      return await _preferencesLoader().timeout(_selectionTimeout);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _restoreSelection(Future<SharedPreferences?> preferences) async {
+    try {
+      final prefs = await preferences;
+      if (prefs == null) return;
       final saved = prefs.getString(selectedProfileKey);
       if (saved != null && profiles.any((p) => p.id == saved)) {
         selectProfile(saved);
         started = true;
       } else if (saved != null) {
-        await prefs.remove(selectedProfileKey);
+        // Best-effort cleanup must not delay startup either.
+        unawaited(prefs.remove(selectedProfileKey).catchError((_) => false));
       }
     } catch (_) {
       // Storage unavailable: carry on without persistence.

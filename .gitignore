@@ -118,3 +118,9 @@ android/key.properties
 *.p8
 *.p12
 *.mobileprovision
+
+# Local Xcode Debug Dart defines (contains the development token).
+/ios/Flutter/Debug.local.xcconfig
+
+# Local source snapshots; keep these out of shared code reviews.
+/docs/checkpoint-*.md

@@ -1,1 +1,3 @@
 #include "Generated.xcconfig"
+// Optional per-machine Debug override. Flutter may regenerate Generated.xcconfig.
+#include? "Debug.local.xcconfig"

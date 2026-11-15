@@ -1,5 +1,24 @@
 # Local run config
 
+## Shared repository versus local machine
+
+Commit the `.run` launch configurations, the placeholder example JSON, and the
+optional include in `ios/Flutter/Debug.xcconfig`. Do not commit `.env`,
+`config/*.local.json`, or `ios/Flutter/Debug.local.xcconfig`.
+
+On another computer, the missing optional Xcode file does not prevent builds.
+Flutter uses its normally generated Dart defines (demo if no API URL is supplied).
+For Xcode remote development, follow `docs/xcode-debug-backend.md` and generate
+that computer's local file. Android Studio's Android/web runs keep using the
+launch configurations below. Release/Profile do not include the Xcode override.
+
+On a Mac with the Xcode override installed, it also overrides Debug iOS runs
+launched from Flutter or Android Studio. To use their iOS launch arguments,
+remove `ios/Flutter/Debug.local.xcconfig`; regenerate it with the documented script
+when returning to Xcode. No app source or shared project setting needs changing.
+
+## Android Studio
+
 1. `cp config/dev.local.example.json config/dev.local.json`
 2. Put the backend's `APP_DEV_TOKEN` value in `DEV_API_TOKEN`. `dev.local.json` is gitignored.
    Flutter never reads `.env` (only the Python backend does), so copy the value over, e.g.

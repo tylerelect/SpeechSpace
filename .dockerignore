@@ -1,0 +1,7 @@
+# Only the API source and dependency manifest belong in the build context.
+**
+!backend/
+!backend/app.py
+!backend/requirements.txt
+!Dockerfile
+!.dockerignore
