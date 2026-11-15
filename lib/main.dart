@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'services/app_controller.dart';
 import 'services/repository.dart';
 import 'screens/app_shell.dart';
+import 'widgets/cursor_trail.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,6 +31,8 @@ class SpeechSpaceApp extends StatelessWidget {
         theme: controller.theme,
         themeAnimationDuration: const Duration(milliseconds: 350),
         home: AppShell(controller: controller),
+        // Always wrapped (just toggled) so switching profiles keeps navigation state.
+        builder: (context, child) => SpaceCursorTrail(enabled: controller.isKids, child: child!),
       ),
     );
   }

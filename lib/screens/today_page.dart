@@ -5,6 +5,7 @@ import '../models/models.dart';
 import '../services/app_controller.dart';
 import '../widgets/entry_editor.dart';
 import '../widgets/commander_video.dart';
+import '../widgets/space_art.dart';
 
 class TodayPage extends StatelessWidget {
   const TodayPage({super.key, required this.controller});
@@ -110,7 +111,10 @@ class _KidsMission extends StatelessWidget {
             )),
           ]),
         ])),
-        Icon(t.icon, size: 96, color: scheme.primary),
+        if (t.id == 'space')
+          Transform.rotate(angle: .35, child: const SpaceArt(SpaceArtKind.rocket, size: 120))
+        else
+          Icon(t.icon, size: 96, color: scheme.primary),
       ],
     )));
   }
@@ -147,9 +151,11 @@ class MemoryTile extends StatelessWidget {
     return Card(child: InkWell(
     borderRadius: BorderRadius.circular(20), onTap: onTap,
     child: Padding(padding: const EdgeInsets.all(16), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(
-        color: scheme.primaryContainer, borderRadius: BorderRadius.circular(14)),
-        child: Icon(kids ? Icons.star_rounded : Icons.auto_stories_outlined, color: scheme.onPrimaryContainer)),
+      kids
+          ? const Padding(padding: EdgeInsets.all(2), child: SpaceArt(SpaceArtKind.star, size: 44))
+          : Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(
+              color: scheme.primaryContainer, borderRadius: BorderRadius.circular(14)),
+              child: Icon(Icons.auto_stories_outlined, color: scheme.onPrimaryContainer)),
       const SizedBox(width: 14),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [

@@ -59,7 +59,8 @@ ThemeData buildTheme(SpaceTheme t) {
     appBarTheme: AppBarTheme(backgroundColor: t.background, surfaceTintColor: Colors.transparent),
     navigationRailTheme: NavigationRailThemeData(backgroundColor: t.background),
     cardTheme: CardThemeData(
-      color: dark ? const Color(0xFF1A1D4A) : Colors.white,
+      // Slightly see-through on dark so the night sky glows behind cards.
+      color: dark ? const Color(0xE61A1D4A) : Colors.white,
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(radius),

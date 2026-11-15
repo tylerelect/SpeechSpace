@@ -4,6 +4,7 @@ import '../models/calendar.dart';
 import '../models/models.dart';
 import '../services/app_controller.dart';
 import '../theme/space_themes.dart';
+import '../widgets/space_art.dart';
 import 'activity_heatmap_page.dart';
 import 'calendar_page.dart';
 import 'mind_map_page.dart';
@@ -94,8 +95,12 @@ class _AppShellState extends State<AppShell> {
       ];
       final width = MediaQuery.sizeOf(context).width;
       final wide = width >= 880;
-      return Scaffold(
+      // The Space theme paints a night sky behind the whole shell.
+      final sky = controller.isKids && controller.spaceTheme.id == 'space';
+      final scaffold = Scaffold(
+        backgroundColor: sky ? Colors.transparent : null,
         appBar: AppBar(
+          backgroundColor: sky ? Colors.transparent : null,
           toolbarHeight: 72,
           title: Row(children: [
             Icon(controller.isKids ? Icons.rocket_launch_rounded : Icons.auto_stories_rounded, color: scheme.primary),
@@ -120,6 +125,7 @@ class _AppShellState extends State<AppShell> {
         body: Row(children: [
           if (wide)
             NavigationRail(
+              backgroundColor: sky ? Colors.transparent : null,
               selectedIndex: _selected,
               onDestinationSelected: (i) => setState(() => _selected = i),
               extended: width >= 1120,
@@ -153,6 +159,8 @@ class _AppShellState extends State<AppShell> {
               : NavigationDestinationLabelBehavior.onlyShowSelected,
         ),
       );
+      // Same tree shape either way so switching profiles keeps page state.
+      return Stack(children: [Positioned.fill(child: sky ? const SpaceBackdrop() : const SizedBox.shrink()), scaffold]);
     });
   }
 }

@@ -7,6 +7,7 @@ import '../services/app_controller.dart';
 import '../services/repository.dart' show ApiException;
 import '../widgets/entry_editor.dart';
 import '../widgets/project_filter.dart';
+import '../widgets/space_art.dart';
 import 'today_page.dart';
 
 /// Day / Week / Month / Year calendar for the active profile (and project),
@@ -101,6 +102,7 @@ class _CalendarPageState extends State<CalendarPage> {
     return Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 980), child: ListView(
       padding: const EdgeInsets.all(22), children: [
         Row(children: [
+          if (copy.isKids) ...[const SpaceArt(SpaceArtKind.planet, size: 46), const SizedBox(width: 10)],
           Expanded(child: Text(copy.navCalendar, style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800))),
           FilledButton.tonalIcon(onPressed: () => openEntryEditor(context, _c, date: _view == CalendarView.day ? _date : DateTime.now()),
               icon: const Icon(Icons.add), label: Text(copy.isKids ? 'Story' : 'Entry')),
@@ -108,6 +110,8 @@ class _CalendarPageState extends State<CalendarPage> {
         const SizedBox(height: 12),
         if (!copy.isKids) ...[ProjectFilter(controller: _c), const SizedBox(height: 12)],
         SegmentedButton<CalendarView>(
+          // The checkmark squeezes labels on phones ("Month" wrapped); the fill already shows selection.
+          showSelectedIcon: false,
           segments: [for (final v in CalendarView.values) ButtonSegment(value: v, label: Text(v.label))],
           selected: {_view},
           onSelectionChanged: (v) => _go(v.first, _date),
@@ -135,7 +139,7 @@ class _CalendarPageState extends State<CalendarPage> {
           switch (_view) {
             CalendarView.day => const SizedBox.shrink(),
             CalendarView.week => _WeekStrip(data: data, onDay: (d) => _go(CalendarView.day, d)),
-            CalendarView.month => _MonthGrid(data: data, selected: _date, onDay: (d) => _go(CalendarView.day, d)),
+            CalendarView.month => _MonthGrid(data: data, selected: _date, kids: copy.isKids, onDay: (d) => _go(CalendarView.day, d)),
             CalendarView.year => _YearGrid(data: data, onMonth: (m) => _go(CalendarView.month, m)),
           },
           const SizedBox(height: 14),
@@ -152,8 +156,13 @@ class _CalendarPageState extends State<CalendarPage> {
             Text(copy.entryNounPlural, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             if (data.entries.isEmpty)
-              Card(child: Padding(padding: const EdgeInsets.all(18),
-                  child: Text('No ${copy.entryNounPlural.toLowerCase()} in this ${_view.wire}.'))),
+              Card(child: Padding(padding: const EdgeInsets.all(18), child: Row(children: [
+                if (copy.isKids) ...[const SpaceArt(SpaceArtKind.moon, size: 52), const SizedBox(width: 14)],
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('No ${copy.entryNounPlural.toLowerCase()} in this ${_view.wire}.'),
+                  if (copy.isKids) Text('Quiet in space! Tap + Story to add one.', style: theme.textTheme.bodySmall),
+                ])),
+              ]))),
             ...data.entries.map((e) => MemoryTile(entry: e, kids: copy.isKids,
                 onTap: () => openEntryEditor(context, _c, entry: e))),
             if (data.truncated) Padding(padding: const EdgeInsets.only(top: 6),
@@ -172,24 +181,64 @@ class _Counts extends StatelessWidget {
   final CalendarData data;
   final bool kids;
 
+  // Kids get a different sticker color per stat so the row isn't three identical boxes.
+  static const _accents = [Color(0xFFFFD23F), Color(0xFFFF8FAB), Color(0xFF7DE2D1)];
+
   @override
   Widget build(BuildContext context) {
-    Widget item(IconData icon, String value, String label) => Expanded(child: Card(child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-      child: Row(children: [
-        Icon(icon, color: Theme.of(context).colorScheme.primary),
-        const SizedBox(width: 10),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
-        ]),
-      ]),
-    )));
-    return Row(children: [
-      item(Icons.book_outlined, '${data.entryCount}', kids ? 'Stories' : 'Entries'),
-      item(Icons.calendar_today_outlined, '${data.activeDays}', 'Active days'),
-      item(Icons.flag_outlined, '${data.milestoneCount}', 'Milestones'),
-    ]);
+    final items = [
+      (Icons.book_outlined, SpaceArtKind.star, '${data.entryCount}', kids ? 'Stories' : 'Entries'),
+      (Icons.calendar_today_outlined, SpaceArtKind.planet, '${data.activeDays}', 'Active days'),
+      (Icons.flag_outlined, SpaceArtKind.rocket, '${data.milestoneCount}', 'Milestones'),
+    ];
+    return LayoutBuilder(builder: (context, constraints) {
+      // On phones three side-by-side "icon | number + label" tiles don't fit; stack them instead.
+      final compact = constraints.maxWidth < 560;
+      return IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        for (var i = 0; i < items.length; i++) ...[
+          if (i > 0) const SizedBox(width: 8),
+          Expanded(child: _CountTile(icon: items[i].$1, art: items[i].$2, value: items[i].$3, label: items[i].$4,
+              accent: kids ? _accents[i] : null, compact: compact)),
+        ],
+      ]));
+    });
+  }
+}
+
+class _CountTile extends StatelessWidget {
+  const _CountTile({required this.icon, required this.art, required this.value, required this.label,
+      required this.accent, required this.compact});
+  final IconData icon;
+  final SpaceArtKind art;
+  final String value, label;
+  final Color? accent;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final a = accent;
+    final dark = theme.brightness == Brightness.dark;
+    final Widget glyph = a != null
+        ? SpaceArt(art, size: compact ? 34 : 40)
+        : Icon(icon, color: theme.colorScheme.primary);
+    final number = Text(value, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800));
+    final caption = Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall);
+    final body = compact
+        ? Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min,
+            children: [glyph, const SizedBox(height: 6), number, caption])
+        : Row(children: [
+            glyph,
+            const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [number, caption])),
+          ]);
+    return Card(
+      margin: EdgeInsets.zero,
+      color: a == null ? null : Color.alphaBlend(a.withValues(alpha: dark ? .14 : .22), theme.cardTheme.color ?? theme.colorScheme.surface),
+      shape: a == null ? null : RoundedRectangleBorder(borderRadius: BorderRadius.circular(22),
+          side: BorderSide(color: a.withValues(alpha: .55), width: 1.5)),
+      child: Padding(padding: EdgeInsets.symmetric(vertical: 12, horizontal: compact ? 12 : 14), child: body),
+    );
   }
 }
 
@@ -232,9 +281,10 @@ class _WeekStrip extends StatelessWidget {
 }
 
 class _MonthGrid extends StatelessWidget {
-  const _MonthGrid({required this.data, required this.selected, required this.onDay});
+  const _MonthGrid({required this.data, required this.selected, required this.onDay, this.kids = false});
   final CalendarData data;
   final DateTime selected;
+  final bool kids;
   final ValueChanged<DateTime> onDay;
 
   @override
@@ -244,6 +294,8 @@ class _MonthGrid extends StatelessWidget {
     final days = DateTime(first.year, first.month + 1, 0).day;
     final offset = first.weekday - 1; // Monday-first
     final slots = ((offset + days + 6) ~/ 7) * 7;
+    final now = DateTime.now();
+    const gold = Color(0xFFFFD23F);
     return Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(children: [
       Row(children: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
           .map((n) => Expanded(child: Center(child: Text(n, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))))).toList()),
@@ -251,7 +303,7 @@ class _MonthGrid extends StatelessWidget {
       LayoutBuilder(builder: (ctx, constraints) => GridView.builder(
         shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 7, mainAxisSpacing: 5, crossAxisSpacing: 5,
-            childAspectRatio: constraints.maxWidth < 460 ? .9 : 1.45),
+            childAspectRatio: constraints.maxWidth < 460 ? .85 : 1.45),
         itemCount: slots,
         itemBuilder: (ctx, i) {
           final dayNum = i - offset + 1;
@@ -259,23 +311,33 @@ class _MonthGrid extends StatelessWidget {
           final date = DateTime(first.year, first.month, dayNum);
           final count = data.countFor(date);
           final isSelected = date.year == selected.year && date.month == selected.month && date.day == selected.day;
+          final isToday = date.year == now.year && date.month == now.month && date.day == now.day;
+          final ring = isSelected ? scheme.primary : isToday ? (kids ? gold : scheme.tertiary) : scheme.outlineVariant;
           return InkWell(
             key: ValueKey('month-day-${isoDay(date)}'),
             onTap: () => onDay(date),
             borderRadius: BorderRadius.circular(12),
             child: Container(decoration: BoxDecoration(
-              color: isSelected ? scheme.primaryContainer : scheme.primary.withValues(alpha: .07),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: isSelected ? scheme.primary : scheme.outlineVariant)),
-              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text('$dayNum', style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+              color: isSelected ? scheme.primaryContainer
+                  : kids && count != null ? gold.withValues(alpha: .13)
+                  : scheme.primary.withValues(alpha: .07),
+              borderRadius: BorderRadius.circular(kids ? 16 : 12),
+              border: Border.all(color: ring, width: isSelected || isToday ? 2 : 1)),
+              // Scale down rather than clip on the narrowest phones.
+              child: Center(child: FittedBox(fit: BoxFit.scaleDown, child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('$dayNum', style: TextStyle(fontWeight: isSelected || isToday ? FontWeight.bold : FontWeight.normal)),
                 if (count != null) Row(mainAxisSize: MainAxisSize.min, children: [
-                  Container(margin: const EdgeInsets.only(top: 4), width: 7, height: 7,
-                      decoration: BoxDecoration(color: scheme.primary, shape: BoxShape.circle)),
-                  if (count.milestoneCount > 0) Padding(padding: const EdgeInsets.only(left: 3, top: 3),
-                      child: Icon(Icons.flag, size: 11, color: scheme.primary)),
+                  if (kids)
+                    // A gold star for every day with a story.
+                    const Padding(padding: EdgeInsets.only(top: 2), child: Icon(Icons.star_rounded, size: 15, color: gold))
+                  else
+                    Container(margin: const EdgeInsets.only(top: 4), width: 7, height: 7,
+                        decoration: BoxDecoration(color: scheme.primary, shape: BoxShape.circle)),
+                  if (count.milestoneCount > 0) Padding(padding: const EdgeInsets.only(left: 2, top: 3),
+                      child: Icon(kids ? Icons.rocket_launch_rounded : Icons.flag, size: kids ? 12 : 11,
+                          color: kids ? const Color(0xFFFF8FAB) : scheme.primary)),
                 ]),
-              ])),
+              ])))),
           );
         },
       )),
@@ -294,7 +356,8 @@ class _YearGrid extends StatelessWidget {
     final year = data.period.start.year;
     return GridView.count(
       shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: MediaQuery.sizeOf(context).width < 600 ? 3 : 4, childAspectRatio: 1.6,
+      crossAxisCount: MediaQuery.sizeOf(context).width < 600 ? 3 : 4,
+      childAspectRatio: MediaQuery.sizeOf(context).width < 440 ? 1.1 : 1.6,
       mainAxisSpacing: 8, crossAxisSpacing: 8,
       children: [
         for (var m = 1; m <= 12; m++) Builder(builder: (context) {
@@ -307,8 +370,8 @@ class _YearGrid extends StatelessWidget {
               key: ValueKey('year-month-$m'),
               borderRadius: BorderRadius.circular(16),
               onTap: () => onMonth(DateTime(year, m)),
-              child: Padding(padding: const EdgeInsets.all(10), child: Column(
-                mainAxisAlignment: MainAxisAlignment.center, children: [
+              child: Padding(padding: const EdgeInsets.all(10), child: Center(child: FittedBox(fit: BoxFit.scaleDown, child: Column(
+                mainAxisSize: MainAxisSize.min, children: [
                   Text(DateFormat.MMM().format(DateTime(year, m)), style: const TextStyle(fontWeight: FontWeight.w700)),
                   Text('$entries', key: ValueKey('year-count-$m'),
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
@@ -316,7 +379,7 @@ class _YearGrid extends StatelessWidget {
                     Icon(Icons.flag, size: 13, color: scheme.primary), Text(' $milestones', style: const TextStyle(fontSize: 12)),
                   ]),
                 ],
-              )),
+              )))),
             ),
           );
         }),
@@ -340,15 +403,20 @@ class _SummaryCard extends StatelessWidget {
     final theme = Theme.of(context);
     final s = summary;
     return Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Icon(Icons.auto_awesome, color: theme.colorScheme.tertiary),
-        const SizedBox(width: 8),
-        Expanded(child: Text(summaryTitle(view), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700))),
-        if (loading)
-          const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5))
-        else
-          FilledButton.tonal(onPressed: onGenerate, child: Text(s == null && error == null ? 'Generate summary' : 'Regenerate')),
-      ]),
+      LayoutBuilder(builder: (context, constraints) {
+        final action = loading
+            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5))
+            : FilledButton.tonal(onPressed: onGenerate, child: Text(s == null && error == null ? 'Generate summary' : 'Regenerate'));
+        final title = Row(children: [
+          Icon(Icons.auto_awesome, color: theme.colorScheme.tertiary),
+          const SizedBox(width: 8),
+          Expanded(child: Text(summaryTitle(view), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700))),
+          if (constraints.maxWidth >= 440) action,
+        ]);
+        // On phones the (large, kid-size) button goes under the title instead of squeezing it.
+        return constraints.maxWidth >= 440 ? title
+            : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [title, const SizedBox(height: 10), action]);
+      }),
       if (s == null && error == null && !loading) Padding(padding: const EdgeInsets.only(top: 8), child: Text(
           hasEntries ? 'Tap Generate summary for a factual recap of this ${view.wire}. Nothing is saved.'
               : 'No entries recorded for this ${view.wire}.',
