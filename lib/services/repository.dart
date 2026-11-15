@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 import '../models/models.dart';
+import 'writing_prompts.dart';
 
 abstract class MemoryRepository {
   bool get isDemo;
@@ -18,6 +19,8 @@ abstract class MemoryRepository {
   Future<AiInsight> analyze(String text, {required String kind});
   /// Asks Gemini for new ideas/recommendations based on related entries.
   Future<List<StarIdea>> expand(String profileId, List<String> entryIds, {required String kind});
+  /// Asks Gemini for "add more detail" prompts that fit the draft being written.
+  Future<List<WritingPrompt>> detailPrompts(String text, {required String kind});
   Future<String> transcribe(Uint8List wav);
 }
 
@@ -141,6 +144,12 @@ class DemoRepository implements MemoryRepository {
   }
 
   @override
+  Future<List<WritingPrompt>> detailPrompts(String text, {required String kind}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    return demoAiPrompts(text, kids: kind != SpaceProfile.adult);
+  }
+
+  @override
   Future<String> transcribe(Uint8List wav) => Future.error(StateError('Speech model not configured. Connect an STT adapter in the backend.'));
 }
 
@@ -167,8 +176,8 @@ class RemoteRepository implements MemoryRepository {
       default: throw ArgumentError('Unsupported method');
     }
     final decoded = response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body) as Map<String, dynamic>;
-    if (response.statusCode == 404 && path == '/api/expand' && decoded['detail'] == 'Not Found') {
-      throw StateError('Star ideas need the new /api/expand backend endpoint, which is not deployed yet.');
+    if (response.statusCode == 404 && decoded['detail'] == 'Not Found' && (path == '/api/expand' || path == '/api/prompts')) {
+      throw StateError('This feature needs the new $path backend endpoint, which is not deployed yet.');
     }
     if (response.statusCode >= 400) throw StateError(decoded['detail']?.toString() ?? 'Server error ${response.statusCode}');
     return decoded;
@@ -225,6 +234,29 @@ class RemoteRepository implements MemoryRepository {
         .map((e) => StarIdea.fromJson(Map<String, dynamic>.from(e as Map), id: newId(), profileId: profileId, allowedSourceIds: allowed))
         .whereType<StarIdea>()
         .take(6)
+        .toList();
+  }
+
+  /// PROPOSED ENDPOINT — not yet in the agreed contract; the backend developer
+  /// needs to implement it (see the PR description).
+  ///
+  /// `POST /api/prompts`
+  /// Request:  `{ "text": "<draft, 1–8000 chars>", "kind": "kids" | "adult" }`
+  /// Response: `{ "prompts": [ { "label": "Who helped you?", "starter": "Someone who helped me was " } ] }`
+  ///           (2–4 prompts; label ≤ 40 chars is the chip text; starter ≤ 80 chars
+  ///           is an unfinished sentence the writer completes in their own words)
+  /// Errors:   503 when GEMINI_API_KEY is unset, 502 when Gemini fails.
+  /// The draft is not stored; it is only used to generate the prompts.
+  @override
+  Future<List<WritingPrompt>> detailPrompts(String text, {required String kind}) async {
+    final data = await _request('POST', '/api/prompts', {'text': text, 'kind': kind});
+    final seen = <String>{};
+    return ((data['prompts'] as List?) ?? [])
+        .whereType<Map>()
+        .map((e) => WritingPrompt.fromJson(Map<String, dynamic>.from(e)))
+        .whereType<WritingPrompt>()
+        .where((p) => seen.add(p.id))
+        .take(4)
         .toList();
   }
 

@@ -6,6 +6,7 @@ import '../theme/mode_copy.dart';
 import '../theme/space_themes.dart';
 import 'repository.dart';
 import 'sound_service.dart';
+import 'writing_prompts.dart';
 
 class AppController extends ChangeNotifier {
   AppController(this.repository, {SoundService? sound}) : sound = sound ?? SoundService();
@@ -204,6 +205,7 @@ class AppController extends ChangeNotifier {
 
   Future<AiInsight> analyze(String text) => repository.analyze(text, kind: kind);
   Future<String> transcribe(Uint8List wav) => repository.transcribe(wav);
+  Future<List<WritingPrompt>> detailPrompts(String text) => repository.detailPrompts(text, kind: kind);
 
   @override
   void dispose() {

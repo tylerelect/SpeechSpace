@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../models/models.dart';
 import '../services/app_controller.dart';
+import '../services/writing_prompts.dart';
 import 'voice_capture.dart';
 
 /// Opens the editor. For a new entry, [suggestion] pre-fills the title and shows
@@ -45,6 +48,8 @@ class _EntryEditorState extends State<EntryEditor> {
   late DateTime _date;
   bool _working = false;
   bool _isMilestone = false;
+  final _bodyFocus = FocusNode();
+  final Set<String> _usedPrompts = {};
 
   @override
   void initState() {
@@ -56,10 +61,92 @@ class _EntryEditorState extends State<EntryEditor> {
     _favorite = TextEditingController(text: widget.entry?.favorite ?? '');
     _highlight = TextEditingController(text: widget.entry?.highlight ?? '');
     _tags = TextEditingController(text: widget.entry?.tags.join(', ') ?? '');
+    _body.addListener(_onBodyChanged);
+  }
+
+  // Rebuild only when the suggestion chips would change, not on every keystroke.
+  List<String> _shownPromptIds = const [];
+  bool _waiting = true;
+  void _onBodyChanged() {
+    final ids = _prompts.map((p) => p.id).toList();
+    final waiting = _wordsNeeded > 0;
+    if (ids.join() != _shownPromptIds.join() || waiting != _waiting) {
+      setState(() { _shownPromptIds = ids; _waiting = waiting; });
+    }
+    if (_geminiOn) {
+      _geminiDebounce?.cancel();
+      _geminiDebounce = Timer(_geminiPause, _refreshGemini);
+    }
+  }
+
+  static int _countWords(String text) => RegExp(r"[A-Za-z']+").allMatches(text).length;
+
+  int get _wordsNeeded {
+    final count = _countWords(_body.text);
+    return count >= promptMinWords ? 0 : promptMinWords - count;
+  }
+
+  /// Gemini chips first, then local keyword chips to fill the remaining slots.
+  List<WritingPrompt> get _prompts {
+    final ai = _geminiPrompts.where((p) => !_usedPrompts.contains(p.id)).toList();
+    final local = suggestPrompts(_body.text, kids: widget.controller.isKids, used: _usedPrompts);
+    final labels = ai.map((p) => p.label.toLowerCase()).toSet();
+    return [...ai, ...local.where((p) => !labels.contains(p.label.toLowerCase()))].take(4).toList();
+  }
+
+  void _usePrompt(WritingPrompt prompt) {
+    final text = appendStarter(_body.text, prompt.starter);
+    _usedPrompts.add(prompt.id);
+    _body.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
+    _bodyFocus.requestFocus();
+    setState(() {});
+  }
+
+  // ---- Gemini suggestions -------------------------------------------------
+  // Off until the writer taps "Ask Gemini" for this entry (nothing is sent before
+  // that). Then refreshes after a pause in typing, once a few words have changed.
+  static const _geminiPause = Duration(milliseconds: 1500);
+  static const _geminiMinNewWords = 3;
+  bool _geminiOn = false;
+  bool _geminiLoading = false;
+  String? _geminiError;
+  List<WritingPrompt> _geminiPrompts = const [];
+  Timer? _geminiDebounce;
+  int _geminiSentWords = 0;
+  String _geminiSentText = '';
+  int _geminiRequest = 0;
+
+  void _askGemini() {
+    setState(() { _geminiOn = true; _geminiError = null; });
+    _refreshGemini(force: true);
+  }
+
+  Future<void> _refreshGemini({bool force = false}) async {
+    final text = _body.text.trim();
+    final words = _countWords(text);
+    if (!mounted || words < promptMinWords || text == _geminiSentText) return;
+    if (!force && (words - _geminiSentWords).abs() < _geminiMinNewWords) return;
+    _geminiSentText = text;
+    _geminiSentWords = words;
+    final request = ++_geminiRequest;
+    setState(() => _geminiLoading = true);
+    try {
+      final prompts = await widget.controller.detailPrompts(text);
+      if (!mounted || request != _geminiRequest) return; // a newer request superseded this one
+      setState(() { _geminiPrompts = prompts; _geminiError = null; _shownPromptIds = _prompts.map((p) => p.id).toList(); });
+    } catch (error) {
+      if (!mounted || request != _geminiRequest) return;
+      setState(() => _geminiError = error.toString().replaceFirst('Bad state: ', ''));
+    } finally {
+      if (mounted && request == _geminiRequest) setState(() => _geminiLoading = false);
+    }
   }
 
   @override
   void dispose() {
+    _geminiDebounce?.cancel();
+    _body.removeListener(_onBodyChanged);
+    _bodyFocus.dispose();
     for (final c in [_title, _body, _favorite, _highlight, _tags]) { c.dispose(); }
     super.dispose();
   }
@@ -176,9 +263,14 @@ class _EntryEditorState extends State<EntryEditor> {
             },
           ),
           const SizedBox(height: 12),
-          TextField(controller: _body, minLines: 5, maxLines: 9, maxLength: 8000,
+          TextField(controller: _body, focusNode: _bodyFocus, minLines: 5, maxLines: 9, maxLength: 8000,
             decoration: InputDecoration(labelText: copy.bodyLabel, alignLabelWithHint: true,
               hintText: copy.bodyHint)),
+          _DetailPrompts(prompts: _prompts, kids: copy.isKids, wordsNeeded: _wordsNeeded, onTap: _usePrompt,
+              geminiOn: _geminiOn, geminiLoading: _geminiLoading, geminiError: _geminiError,
+              demo: widget.controller.demo, onAskGemini: _askGemini,
+              onRefreshGemini: () => _refreshGemini(force: true)),
+          const SizedBox(height: 8),
           Align(alignment: Alignment.centerLeft, child: OutlinedButton.icon(
             onPressed: _working ? null : _analyze,
             icon: const Icon(Icons.auto_awesome_outlined), label: const Text('Suggest highlights with Gemini Flash'),
@@ -208,5 +300,73 @@ class _EntryEditorState extends State<EntryEditor> {
         ]),
       ),
     ));
+  }
+}
+
+/// "Add more details" chips under the note. Hidden until there's a starter sentence.
+/// Gemini chips are marked with a sparkle; local keyword chips use plain icons.
+class _DetailPrompts extends StatelessWidget {
+  const _DetailPrompts({required this.prompts, required this.kids, required this.wordsNeeded, required this.onTap,
+      required this.geminiOn, required this.geminiLoading, required this.geminiError, required this.demo,
+      required this.onAskGemini, required this.onRefreshGemini});
+  final List<WritingPrompt> prompts;
+  final bool kids;
+  final int wordsNeeded;
+  final ValueChanged<WritingPrompt> onTap;
+  final bool geminiOn;
+  final bool geminiLoading;
+  final String? geminiError;
+  final bool demo;
+  final VoidCallback onAskGemini;
+  final VoidCallback onRefreshGemini;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final muted = scheme.onSurfaceVariant;
+    if (wordsNeeded > 0) {
+      return Text(kids ? 'Write a little to get story helpers ✨' : 'Write a sentence to get detail suggestions.',
+          style: theme.textTheme.bodySmall?.copyWith(color: muted));
+    }
+    final chipPadding = kids ? const EdgeInsets.symmetric(horizontal: 6, vertical: 8) : null;
+    final chipText = kids ? const TextStyle(fontSize: 15) : null;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Text(kids ? 'Add more to your story' : 'Add more details',
+            style: theme.textTheme.labelLarge?.copyWith(color: muted)),
+        if (geminiOn) ...[
+          const SizedBox(width: 8),
+          if (geminiLoading)
+            const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+          else
+            IconButton(visualDensity: VisualDensity.compact, iconSize: 18, tooltip: 'Refresh Gemini suggestions',
+                onPressed: onRefreshGemini, icon: const Icon(Icons.refresh)),
+          Text(demo ? 'Demo samples (not Gemini)' : 'Gemini suggestions on',
+              style: theme.textTheme.bodySmall?.copyWith(color: muted)),
+        ],
+      ]),
+      const SizedBox(height: 6),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        for (final p in prompts) ActionChip(
+          avatar: Icon(p.icon, size: kids ? 20 : 18, color: p.fromAi ? scheme.tertiary : null),
+          label: Text(p.label, style: chipText),
+          backgroundColor: p.fromAi ? scheme.tertiaryContainer.withValues(alpha: .5) : null,
+          padding: chipPadding,
+          tooltip: 'Adds "${p.starter.trim()}…" to your note',
+          onPressed: () => onTap(p),
+        ),
+        if (!geminiOn) ActionChip(
+          avatar: Icon(Icons.auto_awesome, size: kids ? 20 : 18, color: scheme.tertiary),
+          label: Text(kids ? 'More ideas from Gemini' : 'Ask Gemini', style: chipText),
+          padding: chipPadding,
+          tooltip: 'Sends this draft to Gemini (through your backend) for suggestions that fit what you wrote',
+          onPressed: onAskGemini,
+        ),
+      ]),
+      if (geminiError != null) Padding(padding: const EdgeInsets.only(top: 6),
+          child: Text('Gemini suggestions unavailable: $geminiError. The other suggestions still work.',
+              style: theme.textTheme.bodySmall?.copyWith(color: scheme.error))),
+    ]);
   }
 }

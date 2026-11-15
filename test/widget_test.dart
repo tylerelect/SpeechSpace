@@ -5,6 +5,8 @@ import 'package:speechspace/models/models.dart';
 import 'package:speechspace/screens/mind_map_page.dart';
 import 'package:speechspace/services/app_controller.dart';
 import 'package:speechspace/services/repository.dart';
+import 'package:speechspace/services/writing_prompts.dart';
+import 'package:speechspace/widgets/entry_editor.dart';
 
 Future<AppController> demoController() async {
   final controller = AppController(DemoRepository());
@@ -220,5 +222,85 @@ void main() {
     await tester.tap(find.text('Dismiss'));
     await tester.pumpAndSettle();
     expect(find.text(idea.title), findsNothing);
+  });
+
+  test('detail prompts wait for a starter sentence and skip details already given', () {
+    expect(suggestPrompts('We went', kids: true), isEmpty);
+    final ids = suggestPrompts('Today I played at the park with Grandpa', kids: true, max: 10).map((p) => p.id).toList();
+    expect(ids, isNot(contains('who')));   // "with Grandpa"
+    expect(ids, isNot(contains('where'))); // "at the park"
+    expect(ids, contains('feel'));
+    expect(ids, contains('next'));
+    final adult = suggestPrompts('Finished the quarterly report draft', kids: false, max: 10).map((p) => p.id);
+    expect(adult, containsAll(['why', 'next']));
+    expect(suggestPrompts('Today I played at the park', kids: true, used: {'feel'}, max: 10).map((p) => p.id),
+        isNot(contains('feel')));
+  });
+
+  test('starters are appended as a new sentence', () {
+    expect(appendStarter('I flew a kite', 'I was with '), 'I flew a kite. I was with ');
+    expect(appendStarter('I flew a kite!  ', 'Then '), 'I flew a kite! Then ');
+    expect(appendStarter('', 'Then '), 'Then ');
+  });
+
+  testWidgets('tapping a detail chip adds a sentence starter to the note', (tester) async {
+    tester.view.physicalSize = const Size(1000, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final controller = await demoController();
+    controller.enterApp('demo-alex');
+    await tester.pumpWidget(MaterialApp(theme: controller.theme, home: Scaffold(
+        body: EntryEditor(controller: controller, initialDate: DateTime.now()))));
+    await tester.pumpAndSettle();
+    expect(find.text('Write a little to get story helpers ✨'), findsOneWidget);
+
+    final body = find.widgetWithText(TextField, 'What happened?');
+    await tester.enterText(body, 'Today I built a big sandcastle');
+    await tester.pump();
+    expect(find.text('Add more to your story'), findsOneWidget);
+    expect(find.text('Who was there?'), findsOneWidget);
+
+    await tester.tap(find.text('Who was there?'));
+    await tester.pump();
+    expect(tester.widget<TextField>(body).controller!.text, 'Today I built a big sandcastle. I was with ');
+    expect(find.text('Who was there?'), findsNothing); // used prompts go away
+  });
+
+  test('Gemini prompt items are validated and trimmed', () {
+    final ok = WritingPrompt.fromJson({'label': '  Who helped you? ', 'starter': 'Someone who helped me was'});
+    expect(ok?.label, 'Who helped you?');
+    expect(ok?.starter, 'Someone who helped me was ');
+    expect(ok?.fromAi, isTrue);
+    expect(WritingPrompt.fromJson({'label': '', 'starter': 'x'}), isNull);
+    expect(WritingPrompt.fromJson({'label': 'x' * 200, 'starter': 'y'})?.label.length, 40);
+  });
+
+  testWidgets('Gemini suggestions only load after opting in, then fill the chips', (tester) async {
+    tester.view.physicalSize = const Size(1000, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final controller = await demoController();
+    controller.enterApp('demo-alex');
+    await tester.pumpWidget(MaterialApp(theme: controller.theme, home: Scaffold(
+        body: EntryEditor(controller: controller, initialDate: DateTime.now()))));
+    await tester.pumpAndSettle();
+
+    final body = find.widgetWithText(TextField, 'What happened?');
+    await tester.enterText(body, 'Today I built a big sandcastle');
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('Tell more about the sandcastle'), findsNothing); // nothing sent before opting in
+
+    await tester.tap(find.text('More ideas from Gemini'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+    expect(find.text('Demo samples (not Gemini)'), findsOneWidget);
+    expect(find.text('More ideas from Gemini'), findsNothing);
+    expect(find.text('Tell more about the sandcastle'), findsOneWidget);
+
+    await tester.tap(find.text('Tell more about the sandcastle'));
+    await tester.pump();
+    expect(tester.widget<TextField>(body).controller!.text, 'Today I built a big sandcastle. The sandcastle was ');
+    await tester.pump(const Duration(seconds: 2)); // let the debounced refresh finish
+    await tester.pump(const Duration(milliseconds: 400));
   });
 }
