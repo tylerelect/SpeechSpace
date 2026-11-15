@@ -51,7 +51,7 @@ class DemoRepository implements MemoryRepository {
   @override
   bool get isDemo => true;
   final List<SpaceProfile> _children = [
-    const SpaceProfile(id: 'demo-alex', name: 'Alex', kind: SpaceProfile.kids),
+    const SpaceProfile(id: 'demo-alex', name: 'Alex'),
     const SpaceProfile(id: 'demo-jordan', name: 'Jordan', kind: SpaceProfile.adult),
   ];
   final List<JournalEntry> _entries = [];
@@ -356,7 +356,7 @@ class RemoteRepository implements MemoryRepository {
     final data = await _request('POST', '/api/prompts', {'text': text, 'kind': kind});
     final seen = <String>{};
     return ((data['prompts'] as List?) ?? [])
-        .whereType<Map>()
+        .whereType<Map<Object?, Object?>>()
         .map((e) => WritingPrompt.fromJson(Map<String, dynamic>.from(e)))
         .whereType<WritingPrompt>()
         .where((p) => seen.add(p.id))

@@ -70,26 +70,75 @@ class AppController extends ChangeNotifier {
   String get kind => profile?.kind ?? SpaceProfile.adult;
   ModeCopy get copy => ModeCopy.forKind(kind);
   SpaceTheme get spaceTheme => resolveTheme(profile?.themeId, kind);
-  ThemeData get theme => buildTheme(spaceTheme);
+  /// Building a [ThemeData] (seed-color scheme, text themes) is expensive, so
+  /// each [SpaceTheme] is built once and reused on every rebuild.
+  static final Map<SpaceTheme, ThemeData> _themeCache = {};
+  ThemeData get theme => _themeCache.putIfAbsent(spaceTheme, () => buildTheme(spaceTheme));
 
-  /// Only the active profile's data (and selected project, if any) is exposed to screens.
-  List<JournalEntry> get profileEntries => entries
-      .where((e) => e.childId == selectedProfileId && (selectedProjectId.isEmpty || e.projectId == selectedProjectId))
-      .toList()
-    ..sort((a, b) => b.date.compareTo(a.date));
-  List<ProjectSpace> get profileProjects => projects.where((p) => p.profileId == selectedProfileId).toList()
-    ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  // Screens read the derived lists below many times per frame, so each one is
+  // computed once and reused until its inputs change. Inputs are compared by
+  // identity: [refresh] always assigns new lists rather than mutating them.
+  (List<JournalEntry>, String?, String)? _entriesKey;
+  List<JournalEntry> _profileEntries = const [];
+  Set<String> _profileEntryIds = const {};
+  (List<ProjectSpace>, String?)? _projectsKey;
+  List<ProjectSpace> _profileProjects = const [];
+  (List<MemoryLink>, String?)? _linksKey;
+  List<MemoryLink> _profileLinks = const [];
+
+  void _syncProfileEntries() {
+    final key = (entries, selectedProfileId, selectedProjectId);
+    if (key == _entriesKey) return;
+    _entriesKey = key;
+    _profileEntries = List.unmodifiable(entries
+        .where((e) => e.childId == selectedProfileId && (selectedProjectId.isEmpty || e.projectId == selectedProjectId))
+        .toList()
+      ..sort((a, b) => b.date.compareTo(a.date)));
+    _profileEntryIds = {for (final e in _profileEntries) e.id};
+  }
+
+  /// Only the active profile's data (and selected project, if any) is exposed
+  /// to screens. Newest first. Unmodifiable.
+  List<JournalEntry> get profileEntries {
+    _syncProfileEntries();
+    return _profileEntries;
+  }
+
+  /// Ids of [profileEntries], for fast membership checks.
+  Set<String> get profileEntryIds {
+    _syncProfileEntries();
+    return _profileEntryIds;
+  }
+
+  List<ProjectSpace> get profileProjects {
+    final key = (projects, selectedProfileId);
+    if (key != _projectsKey) {
+      _projectsKey = key;
+      _profileProjects = List.unmodifiable(projects.where((p) => p.profileId == selectedProfileId).toList()
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase())));
+    }
+    return _profileProjects;
+  }
+
   ProjectSpace? get selectedProject {
     for (final p in profileProjects) { if (p.id == selectedProjectId) return p; }
     return null;
   }
-  List<MemoryLink> get profileLinks => links.where((l) => l.childId == selectedProfileId).toList();
+
+  List<MemoryLink> get profileLinks {
+    final key = (links, selectedProfileId);
+    if (key != _linksKey) {
+      _linksKey = key;
+      _profileLinks = List.unmodifiable(links.where((l) => l.childId == selectedProfileId));
+    }
+    return _profileLinks;
+  }
 
   /// Gemini star suggestions. Session-only, never sent to storage.
   final List<StarIdea> ideas = [];
   bool generatingIdeas = false;
   List<StarIdea> get profileIdeas {
-    final ids = profileEntries.map((e) => e.id).toSet();
+    final ids = profileEntryIds;
     return ideas.where((i) => i.profileId == selectedProfileId && i.sourceIds.any(ids.contains)).toList();
   }
 
@@ -134,9 +183,11 @@ class AppController extends ChangeNotifier {
       selectedProfileId = profiles.isEmpty ? null : profiles.first.id;
       selectedProjectId = '';
       _resetCalendar();
-      sound.onProfileKindChanged(isKids);
+      unawaited(sound.onProfileKindChanged(isKids));
     }
-    if (selectedProjectId.isNotEmpty && !profileProjects.any((p) => p.id == selectedProjectId)) selectedProjectId = '';
+    if (selectedProjectId.isNotEmpty && !profileProjects.any((p) => p.id == selectedProjectId)) {
+      selectedProjectId = '';
+    }
     revision++;
     notifyListeners();
   }
@@ -158,8 +209,9 @@ class AppController extends ChangeNotifier {
       if (prefs == null) return;
       final saved = prefs.getString(selectedProfileKey);
       if (saved != null && profiles.any((p) => p.id == saved)) {
+        // Pre-select the remembered profile, but always show the start
+        // screen so the user can choose who is journaling.
         selectProfile(saved);
-        started = true;
       } else if (saved != null) {
         // Best-effort cleanup must not delay startup either.
         unawaited(prefs.remove(selectedProfileKey).catchError((_) => false));
@@ -187,7 +239,7 @@ class AppController extends ChangeNotifier {
     sound.onProfileKindChanged(isKids);
     revision++;
     notifyListeners();
-    _saveSelection();
+    unawaited(_saveSelection());
   }
 
   void _resetCalendar() {
@@ -239,7 +291,7 @@ class AppController extends ChangeNotifier {
     if (profile == null) return;
     started = true;
     notifyListeners();
-    _saveSelection();
+    unawaited(_saveSelection());
   }
 
   /// Back to the start screen. Stops any sound so the chooser is quiet.
@@ -301,7 +353,7 @@ class AppController extends ChangeNotifier {
   Future<int> generateIdeas(List<String> entryIds) async {
     final profileId = selectedProfileId;
     if (profileId == null) throw StateError('Choose a profile first.');
-    final own = profileEntries.map((e) => e.id).toSet();
+    final own = profileEntryIds;
     final picked = entryIds.where(own.contains).toSet().toList();
     if (picked.isEmpty) throw StateError('Choose at least one entry.');
     if (picked.length > 6) throw StateError('Choose up to 6 entries.');

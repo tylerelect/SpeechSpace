@@ -218,6 +218,12 @@ class _TrailPainter extends CustomPainter {
   _TrailPainter(this.scene) : super(repaint: scene);
   final _TrailScene scene;
 
+  // Paints every frame while moving, so reuse paint objects and one unit star
+  // (scaled per spark) instead of allocating them for every spark.
+  static final _unitStar = starPath(Offset.zero, 1, .32, points: 4, rotation: 0);
+  final _fill = Paint();
+  final _stroke = Paint()..style = PaintingStyle.stroke..strokeWidth = 1.4;
+
   @override
   void paint(Canvas canvas, Size size) {
     for (final s in scene.sparks) {
@@ -226,16 +232,16 @@ class _TrailPainter extends CustomPainter {
       canvas.save();
       canvas.translate(s.pos.dx, s.pos.dy);
       canvas.rotate(s.spin * s.age);
-      final paint = Paint()..color = s.color.withValues(alpha: fade);
       switch (scene.style.shape) {
         case SparkShape.star:
-          canvas.drawPath(starPath(Offset.zero, r, r * .32, points: 4, rotation: 0), paint);
+          canvas.scale(r);
+          canvas.drawPath(_unitStar, _fill..color = s.color.withValues(alpha: fade));
         case SparkShape.bubble:
-          canvas.drawCircle(Offset.zero, r, Paint()..color = s.color.withValues(alpha: fade * .25));
-          canvas.drawCircle(Offset.zero, r, Paint()..style = PaintingStyle.stroke..strokeWidth = 1.4
-              ..color = s.color.withValues(alpha: fade));
+          canvas.drawCircle(Offset.zero, r, _fill..color = s.color.withValues(alpha: fade * .25));
+          canvas.drawCircle(Offset.zero, r, _stroke..color = s.color.withValues(alpha: fade));
         case SparkShape.petal:
-          canvas.drawOval(Rect.fromCenter(center: Offset.zero, width: r * 1.1, height: r * 2.1), paint);
+          canvas.drawOval(Rect.fromCenter(center: Offset.zero, width: r * 1.1, height: r * 2.1),
+              _fill..color = s.color.withValues(alpha: fade));
       }
       canvas.restore();
     }

@@ -102,7 +102,7 @@ class JournalEntry {
 /// The recorded calendar day is the first 10 characters (YYYY-MM-DD) of the
 /// stored ISO date. Never shift it through UTC/local conversion.
 DateTime parseCalendarDay(String iso) {
-  final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(iso);
+  final m = _isoDayPattern.firstMatch(iso);
   if (m == null) return DateTime.parse(iso);
   return DateTime(int.parse(m[1]!), int.parse(m[2]!), int.parse(m[3]!));
 }
@@ -226,3 +226,5 @@ class StarIdea {
     );
   }
 }
+
+final _isoDayPattern = RegExp(r'^(\d{4})-(\d{2})-(\d{2})');

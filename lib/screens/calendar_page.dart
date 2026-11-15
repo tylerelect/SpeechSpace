@@ -319,7 +319,7 @@ class _MonthGrid extends StatelessWidget {
             key: ValueKey('month-day-${isoDay(date)}'),
             onTap: () => onDay(date),
             borderRadius: BorderRadius.circular(12),
-            child: Container(decoration: BoxDecoration(
+            child: DecoratedBox(decoration: BoxDecoration(
               color: isSelected ? scheme.primaryContainer
                   : kids && count != null ? gold.withValues(alpha: .13)
                   : scheme.primary.withValues(alpha: .07),

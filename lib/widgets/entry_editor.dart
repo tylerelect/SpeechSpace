@@ -84,7 +84,8 @@ class _EntryEditorState extends State<EntryEditor> {
     }
   }
 
-  static int _countWords(String text) => RegExp(r"[A-Za-z']+").allMatches(text).length;
+  static final _word = RegExp(r"[A-Za-z']+");
+  static int _countWords(String text) => _word.allMatches(text).length;
 
   int get _wordsNeeded {
     final count = _countWords(_body.text);

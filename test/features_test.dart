@@ -33,7 +33,7 @@ class FakeBackend {
   MockClient get client => MockClient((req) async {
         final path = req.url.path;
         if (req.method == 'GET' && path == '/api/snapshot') {
-          return http.Response(jsonEncode({'children': profiles, 'projects': [], 'entries': [], 'links': []}), 200);
+          return http.Response(jsonEncode({'children': profiles, 'projects': <Object>[], 'entries': <Object>[], 'links': <Object>[]}), 200);
         }
         if (req.method == 'PATCH' && path.startsWith('/api/profiles/')) {
           final id = path.split('/').last;
@@ -64,8 +64,8 @@ void main() {
 
     test('month, year, and leap-day boundaries', () {
       final dec = CalendarPeriod.of(CalendarView.month, DateTime(2026, 12, 31));
-      expect(dec.endExclusive, DateTime(2027, 1, 1));
-      expect(CalendarPeriod.of(CalendarView.year, DateTime(2026, 6, 1)).endExclusive, DateTime(2027));
+      expect(dec.endExclusive, DateTime(2027));
+      expect(CalendarPeriod.of(CalendarView.year, DateTime(2026, 6)).endExclusive, DateTime(2027));
       final feb = CalendarPeriod.of(CalendarView.month, DateTime(2028, 2, 10));
       expect(feb.contains(DateTime(2028, 2, 29)), isTrue);
       expect(shiftDate(CalendarView.month, DateTime(2028, 1, 31), 1), DateTime(2028, 2, 29));
@@ -94,7 +94,7 @@ void main() {
       expect(week.activeDays, 1);
       expect(week.milestoneCount, 1);
       expect(week.entries.map((e) => e.id), isNot(contains('3')));
-      final project = CalendarData.compute(profileId: 'p1', view: CalendarView.month, date: DateTime(2026, 11, 1),
+      final project = CalendarData.compute(profileId: 'p1', view: CalendarView.month, date: DateTime(2026, 11),
           projectId: 'proj', allEntries: all);
       expect(project.entries.map((e) => e.id), ['2']);
 
@@ -107,7 +107,7 @@ void main() {
     });
 
     test('snapshot without a projects key still loads', () {
-      final s = AppSnapshot.fromJson({'children': [], 'entries': [], 'links': []});
+      final s = AppSnapshot.fromJson({'children': <Object>[], 'entries': <Object>[], 'links': <Object>[]});
       expect(s.projects, isEmpty);
     });
   });
@@ -150,7 +150,7 @@ void main() {
       final restarted = AppController(DemoRepository());
       await restarted.initialize();
       expect(restarted.selectedProfileId, 'demo-jordan');
-      expect(restarted.started, isTrue);
+      expect(restarted.started, isFalse); // chooser always shows; remembered profile is pre-selected
 
       await (await SharedPreferences.getInstance()).setString(AppController.selectedProfileKey, 'gone');
       final fallback = AppController(DemoRepository());

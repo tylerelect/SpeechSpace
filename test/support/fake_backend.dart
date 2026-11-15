@@ -175,12 +175,12 @@ class FakeBackend {
           });
         }
         if (req.method == 'POST' && path == '/api/calendar/summary') {
-          final scope = _scope(body['profileId'] ?? '', body['view'] ?? '', body['date'] ?? '', body['projectId'] ?? '');
+          final scope = _scope(body['profileId'] as String? ?? '', body['view'] as String? ?? '', body['date'] as String? ?? '', body['projectId'] as String? ?? '');
           if (scope is http.Response) return scope;
           final s = scope as _Scope;
           if (s.records.isEmpty) {
-            return _json({...s.base, 'generated': false, 'partial': false, 'analyzedEntries': 0, 'sourceEntryIds': [],
-                'summary': 'No entries recorded for this ${body['view']}.', 'highlights': [], 'themes': [], 'milestones': []});
+            return _json({...s.base, 'generated': false, 'partial': false, 'analyzedEntries': 0, 'sourceEntryIds': <String>[],
+                'summary': 'No entries recorded for this ${body['view']}.', 'highlights': <String>[], 'themes': <String>[], 'milestones': <Object>[]});
           }
           if (summaryStatus == 503) return _error(503, 'Gemini Flash not configured. Set GEMINI_API_KEY.');
           if (summaryStatus != null) return _error(summaryStatus!, 'Gemini summary unavailable. Try again later.');

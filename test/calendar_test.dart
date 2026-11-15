@@ -75,7 +75,7 @@ void main() {
       expect(blank.entryCount, 0);
       expect(blank.entries, isEmpty);
       expect(blank.days, isEmpty);
-      final october = await repo.calendar('a1', CalendarView.month, DateTime(2026, 10, 1));
+      final october = await repo.calendar('a1', CalendarView.month, DateTime(2026, 10));
       expect(october.entryCount, 0);
       expect(october.activeDays, 0);
     });
@@ -104,10 +104,10 @@ void main() {
       expect(week.period.start, DateTime(2026, 12, 28));
       expect(week.period.endExclusive, DateTime(2027, 1, 4));
       expect(week.entries.map((e) => e.id), ['jan03', 'dec31', 'dec28']);
-      expect((await repo.calendar('a1', CalendarView.month, DateTime(2026, 12, 1))).entryCount, 2);
-      expect((await repo.calendar('a1', CalendarView.year, DateTime(2027, 6, 1))).entryCount, 2);
+      expect((await repo.calendar('a1', CalendarView.month, DateTime(2026, 12))).entryCount, 2);
+      expect((await repo.calendar('a1', CalendarView.year, DateTime(2027, 6))).entryCount, 2);
       expect(shiftDate(CalendarView.month, DateTime(2026, 12, 15), 1), DateTime(2027, 1, 15));
-      expect(shiftDate(CalendarView.day, DateTime(2026, 12, 31), 1), DateTime(2027, 1, 1));
+      expect(shiftDate(CalendarView.day, DateTime(2026, 12, 31), 1), DateTime(2027));
       final local = CalendarData.compute(profileId: 'a1', view: CalendarView.week, date: DateTime(2026, 12, 31),
           projectId: '', allEntries: b.entries.map(JournalEntry.fromJson));
       expect(local.entries.map((e) => e.id), ['jan03', 'dec31', 'dec28']);
@@ -117,12 +117,12 @@ void main() {
       final b = FakeBackend();
       b.addEntry('a1', '2028-02-29', id: 'leap');
       final repo = RemoteRepository(baseUrl: 'http://test', devToken: 't', client: b.client);
-      final feb = await repo.calendar('a1', CalendarView.month, DateTime(2028, 2, 1));
+      final feb = await repo.calendar('a1', CalendarView.month, DateTime(2028, 2));
       expect(feb.entries.single.date, DateTime(2028, 2, 29));
-      final week = await repo.calendar('a1', CalendarView.week, DateTime(2028, 3, 1));
+      final week = await repo.calendar('a1', CalendarView.week, DateTime(2028, 3));
       expect(week.period.start, DateTime(2028, 2, 28));
       expect(week.entryCount, 1);
-      expect((await repo.calendar('a1', CalendarView.month, DateTime(2028, 3, 1))).entryCount, 0);
+      expect((await repo.calendar('a1', CalendarView.month, DateTime(2028, 3))).entryCount, 0);
     });
 
     test('a late-evening timestamp stays on its stored day', () async {
@@ -306,7 +306,7 @@ void main() {
         b.addEntry('a1', '2026-03-${(1 + i % 28).toString().padLeft(2, '0')}');
       }
       final c = await remote(b);
-      c.setCalendar(CalendarView.year, DateTime(2026, 3, 1));
+      c.setCalendar(CalendarView.year, DateTime(2026, 3));
       await pumpCalendar(tester, c);
       await tester.tap(find.text('Generate summary'));
       await tester.pumpAndSettle();

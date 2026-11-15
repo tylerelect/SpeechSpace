@@ -18,6 +18,7 @@ class FakeRecorder implements VoiceRecorder {
   Object? startError;
   Completer<bool>? permissionGate;
   Completer<void>? stopGate;
+  // ignore: close_sinks (the code under test owns this stream; tests inspect it)
   StreamController<Uint8List>? stream;
   int permissionCalls = 0;
   int startCalls = 0;
@@ -275,7 +276,7 @@ void main() {
     await startRecording(tester);
     recorder.add(640);
     await tester.pump();
-    final stream = recorder.stream!;
+    final stream = recorder.stream!; // ignore: close_sinks
     expect(stream.hasListener, isTrue);
 
     await tester.pumpWidget(const SizedBox());

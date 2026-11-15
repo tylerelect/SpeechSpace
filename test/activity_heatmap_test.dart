@@ -84,19 +84,19 @@ void main() {
     test('month and year rollover', () {
       final map = ActivityHeatmap.compute([
         e('a', DateTime(2026, 12, 31)),
-        e('b', DateTime(2027, 1, 1)),
-        e('c', DateTime(2027, 1, 1)),
+        e('b', DateTime(2027)),
+        e('c', DateTime(2027)),
       ], DateTime(2027, 1, 2));
       expect(map.dayFor(DateTime(2026, 12, 31))!.entryCount, 1);
-      expect(map.dayFor(DateTime(2027, 1, 1))!.entryCount, 2);
+      expect(map.dayFor(DateTime(2027))!.entryCount, 2);
       final months = {for (final m in map.months) isoDay(m.month): m.entryCount};
       expect(months['2026-12-01'], 1);
       expect(months['2027-01-01'], 2);
-      expect(map.months.first.month, DateTime(2026, 1));
+      expect(map.months.first.month, DateTime(2026));
     });
 
     test('leap day', () {
-      final map = ActivityHeatmap.compute([e('leap', DateTime(2028, 2, 29))], DateTime(2028, 3, 1));
+      final map = ActivityHeatmap.compute([e('leap', DateTime(2028, 2, 29))], DateTime(2028, 3));
       expect(map.start, DateTime(2027, 3, 3));
       expect(map.dayFor(DateTime(2028, 2, 29))!.entryCount, 1);
       expect(map.weeks.expand((w) => w).where((d) => d.inRange), hasLength(365));

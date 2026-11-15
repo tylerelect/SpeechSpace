@@ -34,6 +34,22 @@ class _ActivityHeatmapPageState extends State<ActivityHeatmapPage> {
 
   AppController get _c => widget.controller;
 
+  // Building the 53-week grid is the costliest part of this page; reuse it
+  // while the entries and the current day are unchanged (e.g. when a tap only
+  // changes the selected day).
+  ActivityHeatmap? _map;
+  (List<JournalEntry>, DateTime)? _mapKey;
+
+  ActivityHeatmap _heatmap() {
+    final now = widget.clock();
+    final key = (_c.profileEntries, DateTime(now.year, now.month, now.day));
+    if (key != _mapKey) {
+      _mapKey = key;
+      _map = ActivityHeatmap.compute(key.$1, key.$2);
+    }
+    return _map!;
+  }
+
   @override
   Widget build(BuildContext context) {
     // A selection never carries over to another profile or project.
@@ -42,7 +58,7 @@ class _ActivityHeatmapPageState extends State<ActivityHeatmapPage> {
       _selectionScope = scope;
       _selected = null;
     }
-    final map = ActivityHeatmap.compute(_c.profileEntries, widget.clock());
+    final map = _heatmap();
     final theme = Theme.of(context);
     final copy = _c.copy;
     final noun = copy.isKids ? 'stories' : 'entries';

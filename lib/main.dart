@@ -7,8 +7,8 @@ import 'widgets/cursor_trail.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  const url = String.fromEnvironment('API_BASE_URL', defaultValue: '');
-  const token = String.fromEnvironment('DEV_API_TOKEN', defaultValue: '');
+  const url = String.fromEnvironment('API_BASE_URL');
+  const token = String.fromEnvironment('DEV_API_TOKEN');
   final repository = url.isEmpty
       ? DemoRepository()
       : RemoteRepository(baseUrl: url, devToken: token);

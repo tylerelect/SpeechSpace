@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
 
+// Compiled once: these run on every keystroke in the entry editor.
+final _whitespace = RegExp(r'\s+');
+final _letters = RegExp(r'[A-Za-z]+');
+final _wordPattern = RegExp(r"[A-Za-z']+");
+final _sentenceEnd = RegExp(r'[.!?…]$');
+
 /// A tappable "add more detail" suggestion for the journal editor. Tapping it
 /// appends [starter] to the note so the writer can finish the sentence.
 class WritingPrompt {
@@ -16,7 +22,7 @@ class WritingPrompt {
   /// Parses one item from `/api/prompts`, rejecting anything empty or oversized.
   static WritingPrompt? fromJson(Map<String, dynamic> json) {
     String clean(Object? v, int max) {
-      final text = (v as String? ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
+      final text = (v as String? ?? '').replaceAll(_whitespace, ' ').trim();
       return text.length > max ? text.substring(0, max) : text;
     }
     final label = clean(json['label'], 40);
@@ -35,7 +41,7 @@ enum PromptSource { local, gemini, demo }
 List<WritingPrompt> demoAiPrompts(String text, {required bool kids}) {
   const stop = {'today', 'with', 'were', 'went', 'that', 'this', 'there', 'then', 'they', 'have', 'about', 'really',
     'very', 'some', 'what', 'when', 'from', 'after', 'because', 'played', 'made', 'favorite'};
-  final words = RegExp(r"[A-Za-z]+").allMatches(text).map((m) => m.group(0)!.toLowerCase())
+  final words = _letters.allMatches(text).map((m) => m.group(0)!.toLowerCase())
       .where((w) => w.length >= 4 && !stop.contains(w)).toList();
   final topic = words.isEmpty ? null : words.reduce((a, b) => b.length >= a.length ? b : a);
   WritingPrompt make(String label, String starter) => WritingPrompt(id: 'ai:${label.toLowerCase()}', label: label,
@@ -63,7 +69,7 @@ const promptMinWords = 4;
 /// Runs locally with simple keyword checks: no network, no AI, and nothing is
 /// inferred about the writer. It only notices which kinds of detail are absent.
 List<WritingPrompt> suggestPrompts(String text, {required bool kids, Set<String> used = const {}, int max = 4}) {
-  final words = RegExp(r"[A-Za-z']+").allMatches(text).map((m) => m.group(0)!.toLowerCase()).toList();
+  final words = _wordPattern.allMatches(text).map((m) => m.group(0)!.toLowerCase()).toList();
   if (words.length < promptMinWords) return const [];
   final present = words.toSet();
   bool mentions(Iterable<String> keys) => keys.any(present.contains);
@@ -81,7 +87,7 @@ List<WritingPrompt> suggestPrompts(String text, {required bool kids, Set<String>
 String appendStarter(String text, String starter) {
   final trimmed = text.trimRight();
   if (trimmed.isEmpty) return starter;
-  final ends = RegExp(r'[.!?…]$').hasMatch(trimmed);
+  final ends = _sentenceEnd.hasMatch(trimmed);
   return '$trimmed${ends ? '' : '.'} $starter';
 }
 

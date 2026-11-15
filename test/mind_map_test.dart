@@ -211,7 +211,7 @@ void main() {
       await first.refresh();
       expect(first.profileLinks.single.label, 'same week');
       // Server rejects a duplicate created behind the client's back.
-      await expectLater(first.repository.addLink(MemoryLink(id: '', childId: 'k1', fromId: 'x2', toId: 'x1')),
+      await expectLater(first.repository.addLink(const MemoryLink(id: '', childId: 'k1', fromId: 'x2', toId: 'x1')),
           throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 409)));
 
       final restarted = make();

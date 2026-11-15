@@ -19,6 +19,7 @@ class TodayPage extends StatelessWidget {
     final muted = theme.colorScheme.onSurfaceVariant;
     final today = DateTime.now();
     final current = entries.where((e) => e.date.year == today.year && e.date.month == today.month && e.date.day == today.day).toList();
+    final currentIds = {for (final e in current) e.id};
     final days = entries.map((e) => '${e.date.year}-${e.date.month}-${e.date.day}').toSet().length;
     final name = controller.profile?.name ?? '';
 
@@ -69,7 +70,7 @@ class TodayPage extends StatelessWidget {
         const SizedBox(height: 20),
         Text(copy.recentSection, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
-        ...entries.where((e) => !current.any((c) => c.id == e.id)).take(copy.isKids ? 3 : 5)
+        ...entries.where((e) => !currentIds.contains(e.id)).take(copy.isKids ? 3 : 5)
             .map((e) => MemoryTile(entry: e, kids: copy.isKids, themeId: controller.spaceTheme.id, onTap: () => openEntryEditor(context, controller, entry: e))),
         const SizedBox(height: 26),
       ],
@@ -159,7 +160,7 @@ class MemoryTile extends StatelessWidget {
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Flexible(child: Text(entry.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700), overflow: TextOverflow.ellipsis)),
-          if (entry.isMilestone) Padding(padding: EdgeInsets.only(left: 8), child: Icon(Icons.flag_outlined, size: 17, color: scheme.primary)),
+          if (entry.isMilestone) Padding(padding: const EdgeInsets.only(left: 8), child: Icon(Icons.flag_outlined, size: 17, color: scheme.primary)),
         ]),
         const SizedBox(height: 3),
         Text(DateFormat.yMMMd().format(entry.date), style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),

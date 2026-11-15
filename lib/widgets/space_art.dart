@@ -237,7 +237,7 @@ class SpaceBackdrop extends StatelessWidget {
   Widget build(BuildContext context) => IgnorePointer(child: ExcludeSemantics(child: RepaintBoundary(
     child: LayoutBuilder(builder: (context, c) {
       final narrow = c.maxWidth < 600;
-      return Stack(clipBehavior: Clip.hardEdge, children: [
+      return Stack(children: [
         const Positioned.fill(child: CustomPaint(painter: _SkyPainter())),
         Positioned(right: narrow ? -46 : -30, top: narrow ? 150 : 90,
             child: Opacity(opacity: .55, child: SpaceArt(SpaceArtKind.planet, size: narrow ? 130 : 190))),
@@ -509,7 +509,7 @@ class OceanBackdrop extends StatelessWidget {
   Widget build(BuildContext context) => IgnorePointer(child: ExcludeSemantics(child: RepaintBoundary(
     child: LayoutBuilder(builder: (context, c) {
       final narrow = c.maxWidth < 600;
-      return Stack(clipBehavior: Clip.hardEdge, children: [
+      return Stack(children: [
         const Positioned.fill(child: CustomPaint(painter: _OceanPainter())),
         Positioned(right: narrow ? -20 : 40, top: narrow ? 170 : 110, child: Opacity(opacity: .8,
             child: SpaceArt(SpaceArtKind.fish, size: narrow ? 84 : 120))),
@@ -572,7 +572,7 @@ class SunshineBackdrop extends StatelessWidget {
   Widget build(BuildContext context) => IgnorePointer(child: ExcludeSemantics(child: RepaintBoundary(
     child: LayoutBuilder(builder: (context, c) {
       final narrow = c.maxWidth < 600;
-      return Stack(clipBehavior: Clip.hardEdge, children: [
+      return Stack(children: [
         const Positioned.fill(child: CustomPaint(painter: _SunshinePainter())),
         Positioned(right: narrow ? -26 : 30, top: narrow ? 120 : 70,
             child: SpaceArt(SpaceArtKind.sun, size: narrow ? 120 : 180)),

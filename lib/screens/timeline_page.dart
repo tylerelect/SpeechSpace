@@ -19,10 +19,12 @@ class _TimelinePageState extends State<TimelinePage> {
   @override
   Widget build(BuildContext context) {
     final copy = widget.controller.copy;
+    final query = _query.toLowerCase();
     final entries = widget.controller.profileEntries.where((e) {
       if (_milestonesOnly && !e.isMilestone) return false;
+      if (query.isEmpty) return true;
       final text = '${e.title} ${e.body} ${e.highlight} ${e.favorite} ${e.tags.join(' ')}'.toLowerCase();
-      return text.contains(_query.toLowerCase());
+      return text.contains(query);
     }).toList();
     return Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 940), child: ListView(
       padding: const EdgeInsets.all(22), children: [

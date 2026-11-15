@@ -99,8 +99,9 @@ class _MindMapPageState extends State<MindMapPage> {
         return _freeSpot(centre);
       });
     }
-    _positions.removeWhere((key, value) => !entries.any((e) => e.id == key) && !ideas.any((i) => i.id == key));
-    for (final key in _positions.keys.toList()) { _positions[key] = _clamp(_positions[key]!); }
+    final live = {..._c.profileEntryIds, for (final i in ideas) i.id};
+    _positions.removeWhere((key, _) => !live.contains(key));
+    _positions.updateAll((_, p) => _clamp(p));
     if (_selectedId != null && !_positions.containsKey(_selectedId)) _selectedId = null;
   }
 
@@ -108,7 +109,7 @@ class _MindMapPageState extends State<MindMapPage> {
     final saved = await MindMapLayoutStore.load(profileId);
     if (!mounted || _childId != profileId || saved.isEmpty) return;
     setState(() {
-      final ids = _c.profileEntries.map((e) => e.id).toSet();
+      final ids = _c.profileEntryIds;
       saved.forEach((id, p) { if (ids.contains(id)) _positions[id] = _clamp(p); });
       _needsFit = true;
     });
@@ -117,7 +118,7 @@ class _MindMapPageState extends State<MindMapPage> {
   void _saveLayout() {
     final profileId = _childId;
     if (profileId == null) return;
-    final ids = _c.profileEntries.map((e) => e.id).toSet(); // ideas are session-only
+    final ids = _c.profileEntryIds; // ideas are session-only
     MindMapLayoutStore.save(profileId, {for (final e in _positions.entries) if (ids.contains(e.key)) e.key: e.value});
   }
 
@@ -364,7 +365,16 @@ class _MindMapPageState extends State<MindMapPage> {
     final generating = _c.generatingIdeas;
     final narrow = MediaQuery.sizeOf(context).width < 600;
     final selected = entries.where((e) => e.id == _selectedId).firstOrNull;
-    final selectedLinks = selected == null ? 0 : links.where((l) => l.fromId == _selectedId || l.toId == _selectedId).length;
+    // One pass over the links instead of one pass per card.
+    final connections = <String, int>{};
+    final neighbours = <String>{};
+    for (final l in links) {
+      connections[l.fromId] = (connections[l.fromId] ?? 0) + 1;
+      connections[l.toId] = (connections[l.toId] ?? 0) + 1;
+      if (l.fromId == _selectedId) neighbours.add(l.toId);
+      if (l.toId == _selectedId) neighbours.add(l.fromId);
+    }
+    final selectedLinks = selected == null ? 0 : connections[selected.id] ?? 0;
 
     final toolbar = Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
       if (generating) const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5)),
@@ -433,7 +443,6 @@ class _MindMapPageState extends State<MindMapPage> {
               return InteractiveViewer(
                 transformationController: _transform,
                 minScale: _minScale,
-                maxScale: _maxScale,
                 constrained: false,
                 boundaryMargin: const EdgeInsets.all(400),
                 child: SizedBox(width: _canvas.width, height: _canvas.height, child: Stack(children: [
@@ -445,7 +454,6 @@ class _MindMapPageState extends State<MindMapPage> {
                       ideas: ideas, ideaColor: scheme.tertiary, endDots: kids)))),
                   ...entries.map((entry) {
                     final point = _positions[entry.id] ?? Offset.zero;
-                    final count = links.where((l) => l.fromId == entry.id || l.toId == entry.id).length;
                     return Positioned(
                       key: ValueKey(entry.id),
                       left: point.dx - mindMapNodeSize.width / 2,
@@ -454,11 +462,9 @@ class _MindMapPageState extends State<MindMapPage> {
                         entry: entry,
                         kids: kids,
                         themeId: themeId,
-                        connections: count,
+                        connections: connections[entry.id] ?? 0,
                         selected: entry.id == _selectedId,
-                        dimmed: _selectedId != null && entry.id != _selectedId &&
-                            !links.any((l) => (l.fromId == _selectedId && l.toId == entry.id) ||
-                                (l.toId == _selectedId && l.fromId == entry.id)),
+                        dimmed: _selectedId != null && entry.id != _selectedId && !neighbours.contains(entry.id),
                         onTap: () => _edit(entry),
                         onFocused: () => _select(entry.id),
                         onDrag: (delta) => setState(() => _positions[entry.id] = _clamp(point + delta)),
@@ -666,19 +672,23 @@ class _LinksPainter extends CustomPainter {
       ...links.where((l) => !_touchesSelection(l)),
       ...links.where(_touchesSelection),
     ];
+    final line = Paint()..strokeCap = StrokeCap.round;
+    final dot = Paint();
+    final pill = Paint();
     for (final link in ordered) {
       final a = positions[link.fromId];
       final b = positions[link.toId];
       if (a == null || b == null) continue;
       final emphasized = _touchesSelection(link);
       final dim = selectedId != null && !emphasized;
-      final paint = Paint()
+      line
         ..color = lineColor.withValues(alpha: emphasized ? 1 : (dim ? .22 : .7))
-        ..strokeWidth = emphasized ? 4 : 2.4
-        ..strokeCap = StrokeCap.round;
-      canvas.drawLine(a, b, paint);
+        ..strokeWidth = emphasized ? 4 : 2.4;
+      canvas.drawLine(a, b, line);
       if (endDots) {
-        for (final end in [a, b]) { canvas.drawCircle(end, emphasized ? 6 : 4.5, Paint()..color = paint.color); }
+        dot.color = line.color;
+        canvas.drawCircle(a, emphasized ? 6 : 4.5, dot);
+        canvas.drawCircle(b, emphasized ? 6 : 4.5, dot);
       }
       final midpoint = Offset((a.dx + b.dx) / 2, (a.dy + b.dy) / 2);
       final textPainter = TextPainter(
@@ -694,9 +704,11 @@ class _LinksPainter extends CustomPainter {
       canvas.drawRRect(
         RRect.fromRectAndRadius(Rect.fromLTWH(origin.dx - 4, origin.dy - 1, textPainter.width + 8, textPainter.height + 2),
             const Radius.circular(6)),
-        Paint()..color = labelBackground.withValues(alpha: dim ? .4 : .82),
+        pill..color = labelBackground.withValues(alpha: dim ? .4 : .82),
       );
-      textPainter.paint(canvas, origin);
+      textPainter
+        ..paint(canvas, origin)
+        ..dispose(); // frees the native paragraph now instead of at GC
     }
     // Dashed lines from each suggestion to the entries it came from.
     final dashed = Paint()

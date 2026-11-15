@@ -69,13 +69,13 @@ void main() {
       expect(week.returnedCount, 2);
       expect(week.milestoneCount, 1);
       expect(week.entries.every((e) => e.childId == adult.id), isTrue);
-      expect((await r.calendar(adult.id, CalendarView.month, DateTime(2026, 11, 1))).entryCount, 3);
-      expect((await r.calendar(adult.id, CalendarView.year, DateTime(2026, 1, 1))).entryCount, 3);
+      expect((await r.calendar(adult.id, CalendarView.month, DateTime(2026, 11))).entryCount, 3);
+      expect((await r.calendar(adult.id, CalendarView.year, DateTime(2026))).entryCount, 3);
       expect((await r.calendar(adult.id, CalendarView.day, DateTime(2026, 11, 10))).entryCount, 0);
-      expect((await r.calendar(kid.id, CalendarView.month, DateTime(2026, 11, 1))).entryCount, 3);
-      final filtered = await r.calendar(adult.id, CalendarView.month, DateTime(2026, 11, 1), projectId: project.id);
+      expect((await r.calendar(kid.id, CalendarView.month, DateTime(2026, 11))).entryCount, 3);
+      final filtered = await r.calendar(adult.id, CalendarView.month, DateTime(2026, 11), projectId: project.id);
       expect(filtered.entries.map((e) => e.id), [n14.id]);
-      await expectLater(r.calendar(kid.id, CalendarView.month, DateTime(2026, 11, 1), projectId: project.id),
+      await expectLater(r.calendar(kid.id, CalendarView.month, DateTime(2026, 11), projectId: project.id),
           throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 422)));
 
       // Controller path, exactly as the calendar page calls it.

@@ -78,7 +78,7 @@ void main() {
     // Restart: a new controller restores the selected profile locally and themes from the backend.
     final restarted = AppController(repo(b));
     await restarted.initialize();
-    expect(restarted.started, isTrue);
+    expect(restarted.started, isFalse); // chooser always shows; remembered profile is pre-selected
     expect(restarted.selectedProfileId, 'k1');
     expect(restarted.spaceTheme.id, 'sunshine');
     restarted.selectProfile('a1');
