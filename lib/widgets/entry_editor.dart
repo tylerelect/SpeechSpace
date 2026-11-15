@@ -14,17 +14,13 @@ import 'voice_capture.dart';
 Future<void> openEntryEditor(BuildContext context, AppController controller,
     {JournalEntry? entry, DateTime? date, StarIdea? suggestion, ValueChanged<JournalEntry>? onSaved}) async {
   if (controller.profile == null) return;
-  await showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    showDragHandle: true,
-    builder: (_) => FractionallySizedBox(
-      heightFactor: .92,
-      child: EntryEditor(controller: controller, entry: entry, initialDate: date ?? DateTime.now(),
-          suggestion: suggestion, onSaved: onSaved),
-    ),
-  );
+  // A full-screen page (not a sheet) so it can't be swiped away mid-story: it
+  // closes only through the Close button, Save/Delete, or a confirmed back.
+  await Navigator.of(context).push(MaterialPageRoute<void>(
+    fullscreenDialog: true,
+    builder: (_) => EntryEditor(controller: controller, entry: entry, initialDate: date ?? DateTime.now(),
+        suggestion: suggestion, onSaved: onSaved),
+  ));
 }
 
 class EntryEditor extends StatefulWidget {
@@ -53,7 +49,35 @@ class _EntryEditorState extends State<EntryEditor> {
   bool _isMilestone = false;
   String _projectId = '';
   final _bodyFocus = FocusNode();
+  final _scroll = ScrollController();
   final Set<String> _usedPrompts = {};
+  late final String _initialState;
+
+  String _stateKey() => [_title.text, _body.text, _favorite.text, _highlight.text, _tags.text,
+      _date.toIso8601String(), _isMilestone, _projectId].join('\u0000');
+  bool get _dirty => _stateKey() != _initialState;
+
+  /// Close button / system back: leave right away if nothing changed, else confirm.
+  Future<void> _requestClose() async {
+    if (_working) return;
+    if (!_dirty) { Navigator.of(context).pop(); return; }
+    final kids = widget.controller.copy.isKids;
+    final discard = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: Text(kids ? 'Leave without saving?' : 'Discard changes?'),
+      content: Text(kids ? 'Your story is not saved yet.' : 'Your changes to this entry are not saved.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep editing')),
+        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Discard')),
+      ],
+    ));
+    if (discard == true && mounted) Navigator.of(context).pop();
+  }
+
+  Future<void> _pickDate() async {
+    final chosen = await showDatePicker(context: context, initialDate: _date,
+      firstDate: DateTime(2000), lastDate: DateTime.now().add(const Duration(days: 1)));
+    if (chosen != null) setState(() => _date = chosen);
+  }
 
   @override
   void initState() {
@@ -68,6 +92,7 @@ class _EntryEditorState extends State<EntryEditor> {
     _highlight = TextEditingController(text: widget.entry?.highlight ?? '');
     _tags = TextEditingController(text: widget.entry?.tags.join(', ') ?? '');
     _body.addListener(_onBodyChanged);
+    _initialState = _stateKey();
   }
 
   // Rebuild only when the suggestion chips would change, not on every keystroke.
@@ -154,6 +179,7 @@ class _EntryEditorState extends State<EntryEditor> {
     _geminiDebounce?.cancel();
     _body.removeListener(_onBodyChanged);
     _bodyFocus.dispose();
+    _scroll.dispose();
     for (final c in [_title, _body, _favorite, _highlight, _tags]) { c.dispose(); }
     super.dispose();
   }
@@ -228,25 +254,47 @@ class _EntryEditorState extends State<EntryEditor> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final copy = widget.controller.copy;
-    return Center(child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 760),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(20, 4, 20, MediaQuery.viewInsetsOf(context).bottom + 14),
-        child: ListView(children: [
-          Row(children: [
-            Expanded(child: Text(widget.entry == null ? copy.editorNewTitle : copy.editorEditTitle, style: theme.textTheme.headlineSmall)),
-            IconButton(tooltip: 'Close', onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
-          ]),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () async {
-              final chosen = await showDatePicker(context: context, initialDate: _date,
-                firstDate: DateTime(2000), lastDate: DateTime.now().add(const Duration(days: 1)));
-              if (chosen != null) setState(() => _date = chosen);
-            },
+    return PopScope(
+      canPop: false, // system/Android back goes through the unsaved-changes check
+      onPopInvokedWithResult: (didPop, _) { if (!didPop) _requestClose(); },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(tooltip: 'Close', onPressed: _working ? null : _requestClose, icon: const Icon(Icons.close)),
+          title: Text(widget.entry == null ? copy.editorNewTitle : copy.editorEditTitle),
+          actions: [
+            TextButton(onPressed: _working ? null : _save, child: Text(_working ? 'Saving…' : 'Save')),
+            PopupMenuButton<String>(
+              tooltip: 'More options',
+              enabled: !_working,
+              onSelected: (value) {
+                switch (value) {
+                  case 'date': _pickDate();
+                  case 'highlights': _analyze();
+                  case 'milestone': setState(() => _isMilestone = !_isMilestone);
+                  case 'delete': _delete();
+                }
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'date', child: ListTile(leading: Icon(Icons.calendar_today_outlined), title: Text('Change date'))),
+                const PopupMenuItem(value: 'highlights', child: ListTile(leading: Icon(Icons.auto_awesome_outlined), title: Text('Suggest highlights'))),
+                PopupMenuItem(value: 'milestone', child: ListTile(leading: Icon(_isMilestone ? Icons.flag : Icons.flag_outlined),
+                    title: Text(_isMilestone ? 'Unmark milestone' : 'Mark as milestone'))),
+                if (widget.entry != null) const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete_outline), title: Text('Delete'))),
+              ],
+            ),
+          ],
+        ),
+        // The page scrolls with a scrollbar that's always visible, so it's clear there's more below.
+        body: SafeArea(top: false, child: Scrollbar(controller: _scroll, thumbVisibility: true, child: ListView(
+          controller: _scroll,
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          children: [Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 760),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Align(alignment: Alignment.centerLeft, child: OutlinedButton.icon(
+            onPressed: _pickDate,
             icon: const Icon(Icons.calendar_today_outlined),
             label: Text(DateFormat.yMMMMd().format(_date)),
-          ),
+          )),
           const SizedBox(height: 12),
           if (widget.suggestion != null) Card(
             color: theme.colorScheme.secondaryContainer,
@@ -323,9 +371,10 @@ class _EntryEditorState extends State<EntryEditor> {
               icon: const Icon(Icons.save_outlined), label: Text(_working ? 'Saving…' : copy.saveLabel)),
           ]),
           const SizedBox(height: 20),
-        ]),
+          ])))],
+        ))),
       ),
-    ));
+    );
   }
 }
 

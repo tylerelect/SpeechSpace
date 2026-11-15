@@ -61,9 +61,9 @@ class TodayPage extends StatelessWidget {
         Text(copy.subtitle(name), style: theme.textTheme.bodyLarge),
         const SizedBox(height: 20),
         // Adults see their numbers first; kids see the big mission card first.
-        if (!copy.isKids) ...[Wrap(spacing: 12, runSpacing: 12, children: metrics), const SizedBox(height: 16)],
+        if (!copy.isKids) ...[_MetricGrid(metrics: metrics), const SizedBox(height: 16)],
         prompt,
-        if (copy.isKids) ...[const SizedBox(height: 16), Wrap(spacing: 12, runSpacing: 12, children: metrics)],
+        if (copy.isKids) ...[const SizedBox(height: 16), _MetricGrid(metrics: metrics)],
         const SizedBox(height: 24),
         Text(copy.todaySection, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
@@ -123,6 +123,28 @@ class _KidsMission extends StatelessWidget {
   }
 }
 
+/// Metric cards that share the row evenly: 2 per row on phones (a 2x2 grid for
+/// adults), all in one row when there is room for every card at a usable width.
+class _MetricGrid extends StatelessWidget {
+  const _MetricGrid({required this.metrics});
+  final List<Widget> metrics;
+
+  static const _gap = 12.0;
+  static const _minCardWidth = 150.0;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, constraints) {
+    final width = constraints.maxWidth;
+    final fitsAll = width >= metrics.length * _minCardWidth + (metrics.length - 1) * _gap;
+    final columns = fitsAll ? metrics.length : 2;
+    // A hair under the exact share so rounding never pushes the last card to a new row.
+    final cardWidth = (width - (columns - 1) * _gap) / columns - 0.5;
+    return Wrap(spacing: _gap, runSpacing: _gap, children: [
+      for (final m in metrics) SizedBox(width: cardWidth, child: m),
+    ]);
+  });
+}
+
 class _Metric extends StatelessWidget {
   const _Metric({required this.icon, required this.count, required this.label, this.large = false});
   final bool large;
@@ -131,7 +153,7 @@ class _Metric extends StatelessWidget {
   final String label;
 
   @override
-  Widget build(BuildContext context) => Card(child: SizedBox(width: large ? 200 : 166, child: Padding(
+  Widget build(BuildContext context) => Card(margin: EdgeInsets.zero, child: SizedBox(width: double.infinity, child: Padding(
     padding: const EdgeInsets.all(17),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Icon(icon, color: Theme.of(context).colorScheme.primary, size: large ? 34 : 24),
