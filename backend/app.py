@@ -7,10 +7,12 @@ separate owners, access controls, and a privacy review.
 from __future__ import annotations
 
 import hmac
+import io
 import json
 import os
 import re
 import uuid
+import wave
 from datetime import date as dt_date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Annotated, Literal
@@ -87,7 +89,8 @@ def ensure_indexes(database: Database) -> None:
 def parent_actor(authorization: Annotated[str | None, Header()] = None) -> str:
     if not DEV_TOKEN:
         raise HTTPException(503, 'APP_DEV_TOKEN must be configured for prototype access.')
-    candidate = authorization.removeprefix('Bearer ').strip() if authorization else ''
+    scheme, separator, credential = (authorization or '').partition(' ')
+    candidate = credential.strip() if separator and scheme.lower() == 'bearer' else ''
     if not hmac.compare_digest(candidate, DEV_TOKEN):
         raise HTTPException(401, 'Unauthorized demo token.')
     return 'prototype-parent'
@@ -438,9 +441,22 @@ def calendar_period(view: str, anchor: dt_date) -> tuple[dt_date, dt_date, str]:
 
 
 def entry_day(record: dict) -> str:
-    """Calendar day of an entry: first 10 chars of its stored ISO date (no UTC shift)."""
+    """Calendar day from first 10 ISO characters, without UTC conversion.
+
+    Ignore malformed legacy database values rather than displaying phantom
+    activity or crashing a year view.
+    """
     value = record.get('date')
-    return value[:10] if isinstance(value, str) else ''
+    if not isinstance(value, str):
+        return ''
+    day = value[:10]
+    if not _ISO_DAY.fullmatch(day):
+        return ''
+    try:
+        dt_date.fromisoformat(day)
+    except ValueError:
+        return ''
+    return day
 
 
 def calendar_scope(database: Database, owner: str, profile_id: str, view: str, day: str,
@@ -746,7 +762,11 @@ def expand(payload: ExpandIn, owner: Parent):
             title = clip_words(idea.title, 80)
             if not title:
                 continue
-            sources = [x for x in dict.fromkeys(idea.sourceIds) if x in allowed] or list(requested)
+            sources = [x for x in dict.fromkeys(idea.sourceIds) if x in allowed]
+            if not sources:
+                # Never fabricate provenance for an AI idea that cites no real
+                # selected entry; the mind map must not invent relationships.
+                continue
             ideas.append({'title': title, 'detail': clip(idea.detail, 600), 'type': idea.type, 'sourceIds': sources})
         if len(ideas) < 2:
             raise ValueError('Too few ideas.')
@@ -840,7 +860,9 @@ async def call_stt_service(audio: bytes) -> str:
     async with httpx.AsyncClient(timeout=90) as client:
         if stt_provider() == 'elevenlabs':
             response = await client.post(
-                STT_URL or ELEVENLABS_STT_URL,
+                # Never send the ElevenLabs API key to a user-configured URL.
+                # STT_ENDPOINT_URL belongs to the generic adapter only.
+                ELEVENLABS_STT_URL,
                 files=file_field,
                 data={'model_id': ELEVENLABS_STT_MODEL},
                 headers={'xi-api-key': ELEVENLABS_API_KEY},
@@ -866,6 +888,29 @@ SPEECH_NOT_CONFIGURED = (
 )
 
 
+def validate_wav(audio: bytes) -> None:
+    """Reject truncated, empty, or forged WAV headers before contacting the STT provider.
+
+    The Flutter recorder produces mono 16-bit PCM, but the endpoint accepts
+    standard uncompressed PCM WAV variants supported by Python's wave parser.
+    No audio is persisted or logged here.
+    """
+    if len(audio) < 44 or audio[:4] != b'RIFF' or audio[8:12] != b'WAVE':
+        raise HTTPException(422, 'Invalid WAV file.')
+    if int.from_bytes(audio[4:8], 'little') + 8 != len(audio):
+        raise HTTPException(422, 'Invalid WAV file.')
+    try:
+        with wave.open(io.BytesIO(audio), 'rb') as stream:
+            if stream.getcomptype() != 'NONE':
+                raise ValueError('Unsupported WAV compression.')
+            frames = stream.getnframes()
+            expected = frames * stream.getnchannels() * stream.getsampwidth()
+            if frames < 1 or expected < 1 or len(stream.readframes(frames)) != expected:
+                raise ValueError('WAV is empty or truncated.')
+    except (wave.Error, ValueError, EOFError, OSError) as exc:
+        raise HTTPException(422, 'Invalid WAV file.') from exc
+
+
 @app.post('/api/transcribe')
 async def transcribe(owner: Parent, file: UploadFile = File(...)):
     if not stt_configured():
@@ -878,8 +923,7 @@ async def transcribe(owner: Parent, file: UploadFile = File(...)):
         await file.close()
     if len(audio) > MAX_WAV_BYTES:
         raise HTTPException(413, 'Recording too large (3 MB maximum).')
-    if len(audio) < 44 or audio[:4] != b'RIFF' or audio[8:12] != b'WAVE':
-        raise HTTPException(422, 'Invalid WAV file.')
+    validate_wav(audio)
     try:
         transcript = await call_stt_service(audio)
         return {'transcript': transcript}

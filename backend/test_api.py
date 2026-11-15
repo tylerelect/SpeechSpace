@@ -1,7 +1,8 @@
 """API contract tests: use synthetic data and mocked integrations, never live keys."""
 from __future__ import annotations
 
-import struct
+import io
+import wave
 
 import httpx
 import mongomock
@@ -161,6 +162,8 @@ def test_requires_demo_authentication(ctx, monkeypatch):
     assert client.get('/health').status_code == 200
     assert client.get('/api/snapshot').status_code == 401
     assert client.get('/api/snapshot', headers={'Authorization': 'Bearer wrong'}).status_code == 401
+    assert client.get('/api/snapshot', headers={'Authorization': 'synthetic-token-only'}).status_code == 401
+    assert client.get('/api/snapshot', headers={'Authorization': 'Basic synthetic-token-only'}).status_code == 401
     assert client.get('/api/snapshot', headers={'Authorization': 'Bearer synthetic-token-only'}).status_code == 200
 
 
@@ -198,8 +201,14 @@ def test_gemini_modes_and_failure_paths(ctx, monkeypatch):
 
 
 def wav_bytes():
-    # RIFF/WAVE header + mock PCM data; sufficient for transport-level validation.
-    return b'RIFF' + struct.pack('<I', 36) + b'WAVE' + bytes(36)
+    # A genuine 16-kHz mono PCM16 WAV, like the Flutter recording widget creates.
+    output = io.BytesIO()
+    with wave.open(output, 'wb') as stream:
+        stream.setnchannels(1)
+        stream.setsampwidth(2)
+        stream.setframerate(16000)
+        stream.writeframes(b'\x00\x00' * 160)
+    return output.getvalue()
 
 
 def test_transcription_and_errors(ctx, monkeypatch):

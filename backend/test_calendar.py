@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import io
 import struct
+import wave
 import uuid
 from datetime import date
 
@@ -128,6 +130,17 @@ def test_calendar_contract_counts_and_entry_shape(ctx):
     assert data['entries'][0] == saved
     assert all('_id' not in e and 'ownerId' not in e and 'childId' in e for e in data['entries'])
     assert data['returnedCount'] == 4 and data['truncated'] is False
+
+
+def test_malformed_legacy_entry_dates_not_counted(ctx):
+    client, database = ctx
+    p = make_profile(client)
+    add_entry(database, p['id'], '2026-02-30T10:00:00Z', title='invalid-day')
+    add_entry(database, p['id'], '2026-11-14T10:00:00Z', title='valid-day')
+    result = get_calendar(client, p['id'], 'year', '2026-11-14').json()
+    assert result['entryCount'] == 1
+    assert [x['title'] for x in result['entries']] == ['valid-day']
+    assert result['days'] == [{'date': '2026-11-14', 'entryCount': 1, 'milestoneCount': 0}]
 
 
 def test_calendar_cap_200(ctx):
@@ -325,9 +338,26 @@ def test_expand_success_and_source_filtering(ctx, monkeypatch):
     ideas = response.json()['ideas']
     assert 2 <= len(ideas) <= 4
     assert len(ideas[0]['title']) <= 80 and ideas[0]['sourceIds'] == [one['id']]
-    assert ideas[1]['type'] == 'recommendation' and ideas[1]['sourceIds'] == [one['id'], two['id']]
+    assert ideas[1]['title'] == 'Third' and ideas[1]['sourceIds'] == [two['id']]
+    assert all(i['title'] != 'Visit a park' for i in ideas)  # idea cited no valid source
     assert all(set(i['sourceIds']) <= {one['id'], two['id']} for i in ideas)
     assert 'Kite' in seen[0] and 'untrusted' in seen[0]
+
+
+def test_expand_does_not_fabricate_unrelated_source_links(ctx, monkeypatch):
+    client, database = ctx
+    p = make_profile(client)
+    item = add_entry(database, p['id'], '2026-11-14', title='Recorded fact')
+    monkeypatch.setattr(backend, 'GEMINI_KEY', 'synthetic-key')
+    monkeypatch.setattr(backend, 'generate_structured', lambda *_: {'ideas': [
+        {'title': 'Idea without evidence', 'detail': 'This cannot be connected.', 'type': 'idea', 'sourceIds': []},
+        {'title': 'Idea with unknown evidence', 'detail': 'Unknown citation.', 'type': 'idea', 'sourceIds': ['foreign-id']},
+    ]})
+    response = client.post('/api/expand', json={
+        'profileId': p['id'], 'entryIds': [item['id']], 'kind': 'kids',
+    })
+    assert response.status_code == 502
+    assert list(database.links.find()) == []
 
 
 def test_expand_errors(ctx, monkeypatch):
@@ -407,7 +437,13 @@ def test_prompts_success_and_errors(ctx, monkeypatch):
 # --- ElevenLabs STT ----------------------------------------------------------------------
 
 def wav_bytes():
-    return b'RIFF' + struct.pack('<I', 36) + b'WAVE' + bytes(36)
+    output = io.BytesIO()
+    with wave.open(output, 'wb') as stream:
+        stream.setnchannels(1)
+        stream.setsampwidth(2)
+        stream.setframerate(16000)
+        stream.writeframes(b'\x00\x00' * 160)
+    return output.getvalue()
 
 
 @pytest.fixture
@@ -454,6 +490,35 @@ def test_elevenlabs_success(ctx, monkeypatch, mock_http):
     assert b'name="model_id"' in seen['body'] and b'synthetic-model' in seen['body']
     assert b'name="file"' in seen['body'] and b'RIFF' in seen['body']
     assert client.get('/health').json()['speechConfigured'] is True
+
+
+def test_elevenlabs_key_never_sent_to_arbitrary_configured_endpoint(ctx, monkeypatch, mock_http):
+    client, _ = ctx
+    use_elevenlabs(monkeypatch)
+    # Leftover generic URL must NOT receive the ElevenLabs API key.
+    monkeypatch.setattr(backend, 'STT_URL', 'https://third-party.example/collect')
+
+    def handler(request):
+        assert str(request.url) == backend.ELEVENLABS_STT_URL
+        assert request.headers['xi-api-key'] == 'synthetic-eleven-key'
+        return httpx.Response(200, json={'text': 'Privacy preserved.'})
+
+    mock_http(handler)
+    assert upload(client).json() == {'transcript': 'Privacy preserved.'}
+
+
+def test_wav_parser_rejects_forged_and_truncated_headers(ctx, monkeypatch):
+    client, _ = ctx
+    monkeypatch.setattr(backend, 'STT_URL', 'https://stt.example.invalid/api')
+    # RIFF/WAVE magic by itself is not sufficient for valid PCM audio.
+    fakes = [
+        b'RIFF' + struct.pack('<I', 36) + b'WAVE' + bytes(36),
+        wav_bytes()[:-1],
+        wav_bytes()[:40] + b'\x00' * 320,
+        wav_bytes()[:4] + struct.pack('<I', 999999) + wav_bytes()[8:],
+    ]
+    for payload in fakes:
+        assert client.post('/api/transcribe', files={'file': ('bad.wav', payload, 'audio/wav')}).status_code == 422
 
 
 def test_elevenlabs_selected_by_endpoint_host(monkeypatch):
